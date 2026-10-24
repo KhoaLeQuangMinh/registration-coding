@@ -1,0 +1,26 @@
+# Dataset (heavy 3D meshes, PLYs, and keyframe data)
+dataset/
+
+# Python cache & build artifacts
+__pycache__/
+*.py[cod]
+*$py.class
+*.so
+.Python
+env/
+venv/
+.env
+
+# macOS system files
+.DS_Store
+.AppleDouble
+.LSOverride
+
+# Editor & IDE settings
+.vscode/
+.idea/
+*.swp
+*~
+
+# Temporary visualization outputs
+*.html
