@@ -33,7 +33,7 @@ The **P2I-LReg** (Partial-to-Image Liver Registration) dataset is designed for c
   * **Simulated Surgical Tools:** 3D CAD models of laparoscopic graspers and hooks are placed in front of the liver, casting occlusions that create realistic tool cutouts in the visible point clouds (`ptsLiverCam*.ply`) and 2D ground-truth masks (`lbl*.png`).
 
 * **Real Clinical Data (`real/`)**:
-  * **Live Surgery Video:** Full-HD ($1920 \times 1080$) endoscopic surgery frames (`img.png`).
+  * **Live Surgery Video:** Full-HD 1920 x 1080 endoscopic surgery frames (`img.png`).
   * **Unknown Camera Pose:** No tracking sensors exist in the operating room, **estimating this camera pose** is the primary objective of the registration algorithm.
   * **Reconstructed 3D Point Clouds (`liverPcds/`):** 3D surface points generated from monocular video frames using AI depth estimation (*Depth Anything*).
   * **Canonical Scale Factor (`scale/`):** Monocular depth is scale-ambiguous. Principal Component Analysis (PCA) measures the maximum physical spread of the visible liver surface to scale the points into physical millimeters.
@@ -42,6 +42,6 @@ The **P2I-LReg** (Partial-to-Image Liver Registration) dataset is designed for c
 
 * **Partial-to-Complete Matching:** The laparoscope only observes a partial patch of the front surface, which must be matched against the complete 3D CT organ. 
 * **Rigid Pose + Soft-Tissue Deformation:** The algorithm must simultaneously estimate the 6-DoF camera view (rotation and translation) and correct for soft-tissue deformation caused by breathing, surgical tool manipulation, and abdominal gas insufflation.
-* **GOAL:** Register the 3D CT object to the estimated cloud point (.ply), taking into consider the deformation of the liver. 
+* **<font color="red">GOAL:</font>** Register the 3D CT object to the estimated cloud point (.ply), taking into consider the deformation of the liver. 
 
 
