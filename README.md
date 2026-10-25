@@ -42,6 +42,6 @@ The **P2I-LReg** (Partial-to-Image Liver Registration) dataset is designed for c
 
 * **Partial-to-Complete Matching:** The laparoscope only observes a partial patch of the front surface, which must be matched against the complete 3D CT organ. 
 * **Rigid Pose + Soft-Tissue Deformation:** The algorithm must simultaneously estimate the 6-DoF camera view (rotation and translation) and correct for soft-tissue deformation caused by breathing, surgical tool manipulation, and abdominal gas insufflation.
-* **<font color="red">GOAL:</font>** Register the 3D CT object to the estimated cloud point (.ply), taking into consider the deformation of the liver. 
+* $\color{red}\textsf{\textbf{GOAL:}}$ Register the 3D CT object to the estimated cloud point (.ply), taking into consider the deformation of the liver. 
 
 
