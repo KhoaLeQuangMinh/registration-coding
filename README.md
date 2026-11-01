@@ -44,4 +44,35 @@ The **P2I-LReg** (Partial-to-Image Liver Registration) dataset is designed for c
 * **Rigid Pose + Soft-Tissue Deformation:** The algorithm must simultaneously estimate the 6-DoF camera view (rotation and translation) and correct for soft-tissue deformation caused by breathing, surgical tool manipulation, and abdominal gas insufflation.
 * $\color{red}\textsf{\textbf{GOAL:}}$ Register the 3D CT object to the estimated cloud point (.ply), taking into consider the deformation of the liver. 
 
+## 3. Preprocessing (~2.0 mm Spacing)
+
+All modalities are standardized to **~2.0 mm** point spacing for consistent geometric matching.
+
+### Liver OBJ
+* **Before:** Raw CT mesh in meters (~69k vertices, non-uniform spacing).
+* **After:** Scaled to mm (x1000) and decimated by surface area to ~11.5k vertices (~2.0 mm spacing).
+
+![Liver OBJ](assets/preprocessing_ct.png)
+*Figure 4: Liver OBJ Before vs After*
+
+---
+
+### Synthetic PLY
+* **Before:** Raw simulated point cloud (~135k points, dense and non-uniform).
+* **After:** 2.9 mm voxel grid downsampling to ~4.5k points (~2.0 mm spacing).
+
+![Synthetic PLY](assets/preprocessing_syn.png)
+*Figure 5: Synthetic PLY Before vs After*
+
+---
+
+### Real PLY
+* **Before:** Raw depth reconstruction (~1.17M points, 3x4 pixel staircase artifacts).
+* **After:** Stride-4 pixel grid subsampling + 3.0 mm voxel filter to ~3.5k clean points (~2.0 mm spacing).
+
+![Real PLY](assets/preprocessing_real.png)
+*Figure 6: Real PLY Before vs After*
+
+
+
 
