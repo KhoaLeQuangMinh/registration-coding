@@ -1,0 +1,1061 @@
+<!doctype html>
+<html lang="en">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1, viewport-fit=cover">
+<title>Registration Playground</title>
+<link rel="preconnect" href="https://fonts.googleapis.com">
+<link rel="stylesheet" href="https://fonts.googleapis.com/css2?family=IBM+Plex+Mono:wght@400;500&family=IBM+Plex+Sans:wght@400;500;600&family=IBM+Plex+Sans+Condensed:wght@600&display=swap">
+<style>
+/* Layout: a surgical-monitor stage on the left (always dark, like the scope video), a step-by-step instrument panel on the right. */
+:root {
+  --bg: #eef1f3; --panel: #ffffff; --ink: #142029; --muted: #5a6873; --line: #d6dde2; --soft: #f5f7f8;
+  --accent: #0d7480; --accent-ink: #ffffff; --stage: #090d10;
+  --mask: #f2b21b; --ct: #3fd0e6; --ref: #ff6fb5; --only-mask: #f28c1b; --only-ct: #4c8dff; --both: #9aa7b2;
+  --good: #1d7f48; --bad: #b8430f; --tum: #c8195a; --us: #2fe07a;
+  --f-ui: "IBM Plex Sans", system-ui, -apple-system, "Segoe UI", sans-serif;
+  --f-head: "IBM Plex Sans Condensed", "IBM Plex Sans", system-ui, sans-serif;
+  --f-num: "IBM Plex Mono", ui-monospace, "SF Mono", Menlo, monospace;
+  color-scheme: light;
+}
+@media (prefers-color-scheme: dark) { :root:not([data-theme="light"]) {
+  --bg: #0e1418; --panel: #151d22; --ink: #e3e9ed; --muted: #92a1ac; --line: #26323a; --soft: #1a242a;
+  --accent: #36b3c2; --accent-ink: #061215; --good: #4cc483; --bad: #ff8a52; --tum: #ff5c93; color-scheme: dark; } }
+:root[data-theme="dark"] {
+  --bg: #0e1418; --panel: #151d22; --ink: #e3e9ed; --muted: #92a1ac; --line: #26323a; --soft: #1a242a;
+  --accent: #36b3c2; --accent-ink: #061215; --good: #4cc483; --bad: #ff8a52; --tum: #ff5c93; color-scheme: dark; }
+* { box-sizing: border-box; }
+[hidden] { display: none !important; }
+html, body { margin: 0; }
+body { background: var(--bg); color: var(--ink); font: 14px/1.5 var(--f-ui);
+  padding-left: max(16px, env(safe-area-inset-left, 0px)); padding-right: max(16px, env(safe-area-inset-right, 0px)); padding-block: 16px 32px; }
+h1, h2, h3 { font-family: var(--f-head); font-weight: 600; text-wrap: balance; margin: 0; letter-spacing: .01em; }
+h1 { font-size: 22px; }
+.wrap { max-width: 1480px; margin: 0 auto; display: grid; gap: 14px; }
+header { display: flex; flex-wrap: wrap; gap: 10px 18px; align-items: center; justify-content: space-between; }
+header .sub { color: var(--muted); max-width: 70ch; }
+.main { display: grid; grid-template-columns: minmax(0, 1fr) 390px; gap: 14px; align-items: start; }
+@media (max-width: 1000px) { .main { grid-template-columns: minmax(0, 1fr); } }
+.card { background: var(--panel); border: 1px solid var(--line); border-radius: 10px; }
+.stagecard { padding: 10px; display: grid; gap: 8px; min-width: 0; }
+.toolbar { display: flex; flex-wrap: wrap; gap: 8px 12px; align-items: center; }
+.seg { display: inline-flex; border: 1px solid var(--line); border-radius: 8px; overflow: hidden; }
+.seg button { border: 0; border-right: 1px solid var(--line); background: var(--soft); color: var(--ink); padding: 6px 10px; font: 500 13px var(--f-ui); cursor: pointer; }
+.seg button:last-child { border-right: 0; }
+.seg button[aria-pressed="true"] { background: var(--accent); color: var(--accent-ink); }
+.seg button kbd { font: 11px var(--f-num); opacity: .65; margin-left: 4px; }
+button.btn { border: 1px solid var(--line); background: var(--soft); color: var(--ink); border-radius: 8px; padding: 6px 12px; font: 500 13px var(--f-ui); cursor: pointer; }
+button.btn.primary { background: var(--accent); color: var(--accent-ink); border-color: var(--accent); }
+button.btn:disabled { opacity: .5; cursor: default; }
+button:focus-visible, select:focus-visible, input:focus-visible, summary:focus-visible { outline: 2px solid var(--accent); outline-offset: 2px; }
+label.inline { display: inline-flex; gap: 6px; align-items: center; color: var(--muted); font-size: 13px; }
+select { font: 13px var(--f-ui); padding: 5px 8px; border-radius: 8px; border: 1px solid var(--line); background: var(--soft); color: var(--ink); max-width: 100%; }
+.stage { position: relative; width: 100%; aspect-ratio: 16 / 9; max-width: 100%; background: var(--stage); border-radius: 8px; overflow: hidden; touch-action: none; user-select: none; cursor: grab; }
+.stage.dragging { cursor: grabbing; }
+.stage img, .stage canvas { position: absolute; inset: 0; width: 100%; height: 100%; display: block; }
+.stage img { object-fit: fill; }
+.stage .tag { position: absolute; left: 10px; top: 8px; color: #e8eef2; font: 12px var(--f-num); background: rgba(0,0,0,.55); padding: 2px 8px; border-radius: 6px; pointer-events: none; }
+.stage .busy { position: absolute; right: 10px; top: 8px; color: #e8eef2; font: 12px var(--f-num); background: rgba(13,116,128,.85); padding: 2px 8px; border-radius: 6px; pointer-events: none; }
+.legend { display: flex; flex-wrap: wrap; gap: 6px 16px; color: var(--muted); font-size: 12.5px; align-items: center; }
+.sw { display: inline-block; width: 18px; height: 4px; border-radius: 2px; vertical-align: middle; margin-right: 6px; }
+.sw.box { height: 12px; width: 12px; border-radius: 3px; }
+.ramp { display: inline-block; width: 120px; height: 10px; border-radius: 3px; vertical-align: middle; margin: 0 6px; }
+.hint { color: var(--muted); font-size: 12.5px; }
+.pad { display: grid; gap: 6px; padding: 8px 10px; background: var(--soft); border: 1px solid var(--line); border-radius: 8px; }
+.padgroup { display: flex; flex-wrap: wrap; gap: 6px; align-items: center; }
+.padlabel { font: 600 11px var(--f-ui); letter-spacing: .08em; text-transform: uppercase; color: var(--muted); width: 72px; }
+.nb { border: 1px solid var(--line); background: var(--panel); color: var(--ink); border-radius: 7px; padding: 5px 10px; font: 500 13px var(--f-ui); cursor: pointer; touch-action: manipulation; }
+.nb:active { background: var(--accent); color: var(--accent-ink); }
+.side { display: grid; gap: 12px; min-width: 0; }
+.score { padding: 12px 14px; display: grid; gap: 10px; position: sticky; top: max(10px, env(safe-area-inset-top, 0px)); z-index: 2; }
+@media (max-width: 1000px) { .score { position: static; } }
+.jrow { display: flex; align-items: baseline; justify-content: space-between; gap: 10px; }
+.jrow .big { font: 500 30px var(--f-num); letter-spacing: -.01em; white-space: nowrap; }
+.eyebrow { font: 600 11px var(--f-ui); letter-spacing: .08em; text-transform: uppercase; color: var(--muted); }
+.metrics { display: grid; grid-template-columns: 1fr 1fr; gap: 6px 14px; }
+.metric { display: flex; justify-content: space-between; gap: 8px; border-top: 1px solid var(--line); padding-top: 5px; font-size: 13px; }
+.metric b { font: 500 13px var(--f-num); font-variant-numeric: tabular-nums; white-space: nowrap; }
+.metric span { color: var(--muted); }
+.tumbox { border: 1px solid var(--line); border-radius: 8px; padding: 8px 10px; background: var(--soft); }
+.tumbox .big { color: var(--tum); }
+.verdict { font-size: 13px; padding: 6px 10px; border-radius: 8px; background: var(--soft); border: 1px solid var(--line); }
+.verdict .ok { color: var(--good); font-weight: 600; }
+.verdict .no { color: var(--bad); font-weight: 600; }
+details.step { padding: 0; }
+details.step > summary { list-style: none; cursor: pointer; padding: 11px 14px; display: grid; grid-template-columns: 28px 1fr; gap: 2px 10px; align-items: baseline; }
+details.step > summary::-webkit-details-marker { display: none; }
+details.step > summary .n { font: 500 13px var(--f-num); color: var(--accent); grid-row: span 2; }
+details.step > summary h2 { font-size: 15.5px; }
+details.step > summary .s { color: var(--muted); font-size: 12.5px; grid-column: 2; }
+details.step[open] > summary { border-bottom: 1px solid var(--line); }
+.body { padding: 10px 14px 14px; display: grid; gap: 10px; }
+.body p { margin: 0; max-width: 62ch; }
+.row { display: flex; flex-wrap: wrap; gap: 8px; align-items: center; }
+.kv { display: grid; grid-template-columns: auto 1fr; gap: 2px 12px; font-size: 13px; }
+.kv dt { color: var(--muted); }
+.kv dd { margin: 0; font-family: var(--f-num); font-variant-numeric: tabular-nums; }
+.compass { display: grid; grid-template-columns: repeat(3, 44px); grid-template-rows: repeat(3, 34px); gap: 4px; }
+.compass button { border: 1px solid var(--line); background: var(--soft); color: var(--ink); border-radius: 6px; font: 500 12px var(--f-ui); cursor: pointer; padding: 0; }
+.compass button[aria-pressed="true"] { background: var(--accent); color: var(--accent-ink); border-color: var(--accent); }
+.compass .mid { display: grid; place-items: center; font-size: 11px; color: var(--muted); text-align: center; line-height: 1.1; }
+.results { display: grid; gap: 4px; }
+.results button { display: grid; grid-template-columns: 22px 1fr auto; gap: 8px; text-align: left; border: 1px solid var(--line); background: var(--soft); color: var(--ink); border-radius: 8px; padding: 6px 10px; cursor: pointer; font: 13px var(--f-ui); }
+.results button b { font: 500 12.5px var(--f-num); }
+.results button .m { font: 12px var(--f-num); color: var(--muted); }
+.results button.oracle { border-color: var(--tum); }
+input[type="range"] { accent-color: var(--accent); width: 170px; max-width: 100%; }
+.slider { display: grid; grid-template-columns: auto 1fr auto; gap: 8px; align-items: center; font-size: 13px; }
+.slider output { font: 13px var(--f-num); min-width: 56px; text-align: right; }
+.note { font-size: 12.5px; color: var(--muted); border-left: 3px solid var(--line); padding-left: 10px; }
+.shapes { display: grid; gap: 4px; }
+.shapes label { display: flex; gap: 8px; align-items: center; font-size: 13px; }
+.progress { height: 4px; background: var(--line); border-radius: 2px; overflow: hidden; }
+.progress i { display: block; height: 100%; width: 0; background: var(--accent); }
+@media (prefers-reduced-motion: reduce) { * { transition: none !important; } }
+</style>
+</head>
+<body>
+<div class="wrap">
+  <header>
+    <div style="display:grid;gap:4px;min-width:0">
+      <h1>Registration Playground</h1>
+      <div class="sub">Put the CT liver where the camera sees it. Drag on the picture, follow the steps on the right, and watch the score the method uses.</div>
+    </div>
+    <div class="row">
+      <label class="inline" for="sceneSel">Scene</label>
+      <select id="sceneSel"></select>
+      <button class="btn" id="restart">Start over</button>
+    </div>
+  </header>
+
+  <div class="main">
+    <section class="card stagecard" aria-label="Viewer">
+      <div class="toolbar">
+        <div class="seg" role="group" aria-label="Drag tool" id="tools">
+          <button data-tool="rotate" aria-pressed="true">Rotate<kbd>R</kbd></button>
+          <button data-tool="spin">Spin<kbd>S</kbd></button>
+          <button data-tool="move">Move<kbd>M</kbd></button>
+          <button data-tool="distance">Distance<kbd>D</kbd></button>
+          <button data-tool="bend">Bend<kbd>B</kbd></button>
+        </div>
+        <div class="seg" role="group" aria-label="View" id="views">
+          <button data-view="photo" aria-pressed="true">Photo</button>
+          <button data-view="outline">Outlines</button>
+          <button data-view="shape">Shape error</button>
+          <button data-view="3d">3D</button>
+        </div>
+        <button class="btn" id="undo" title="Undo (Ctrl+Z)">Undo</button>
+        <label class="inline" id="truthWrap" hidden><input type="checkbox" id="showTruth" checked> Show the tumour and the ultrasound answer</label>
+      </div>
+      <div class="stage" id="stage">
+        <img id="photo" alt="Laparoscope photo">
+        <canvas id="gl"></canvas>
+        <canvas id="ov"></canvas>
+        <div class="tag" id="tag"></div>
+        <div class="busy" id="busy" hidden></div>
+      </div>
+      <div class="pad" aria-label="Move and turn the CT">
+        <div class="padgroup"><span class="padlabel">Move CT</span>
+          <button class="nb" data-act="move" data-x="-1" data-y="0" title="Left (←)">← left</button>
+          <button class="nb" data-act="move" data-x="1" data-y="0" title="Right (→)">right →</button>
+          <button class="nb" data-act="move" data-x="0" data-y="-1" title="Up (↑)">↑ up</button>
+          <button class="nb" data-act="move" data-x="0" data-y="1" title="Down (↓)">↓ down</button>
+          <button class="nb" data-act="dist" data-k="-1" title="Nearer (−)">nearer</button>
+          <button class="nb" data-act="dist" data-k="1" title="Farther (+)">farther</button>
+        </div>
+        <div class="padgroup"><span class="padlabel">Turn CT</span>
+          <button class="nb" data-act="turn" data-w="-1,0,0" title="Turn as if dragging up">turn ↑</button>
+          <button class="nb" data-act="turn" data-w="1,0,0" title="Turn as if dragging down">turn ↓</button>
+          <button class="nb" data-act="turn" data-w="0,1,0" title="Turn as if dragging left">turn ←</button>
+          <button class="nb" data-act="turn" data-w="0,-1,0" title="Turn as if dragging right">turn →</button>
+          <button class="nb" data-act="turn" data-w="0,0,-1" title="Spin anticlockwise ([)">spin ↺</button>
+          <button class="nb" data-act="turn" data-w="0,0,1" title="Spin clockwise (])">spin ↻</button>
+        </div>
+        <div class="padgroup"><span class="padlabel">Step</span>
+          <select id="stepSel" aria-label="Step size"><option value="0.4">small (2 mm, 2 %, 2°)</option><option value="1" selected>medium (5 mm, 5 %, 5°)</option><option value="3">large (15 mm, 15 %, 15°)</option></select>
+          <span class="hint">Hold a button to keep going.</span>
+        </div>
+      </div>
+      <div class="legend" id="legend"></div>
+      <div class="toolbar" id="photoOpts">
+        <label class="inline" for="opacity">CT opacity <input type="range" id="opacity" min="0" max="1" step="0.05" value="0.55"></label>
+        <label class="inline"><input type="checkbox" id="byPart"> Colour the CT by part</label>
+        <label class="inline"><input type="checkbox" id="showMask" checked> Mask outline</label>
+        <span class="hint" id="toolHint"></span>
+      </div>
+      <div class="toolbar" id="opts3d" hidden>
+        <button class="btn" id="view3dReset">Reset 3D view</button>
+        <button class="btn" id="view3dLap">Look through the laparoscope</button>
+        <label class="inline"><input type="checkbox" id="show3dPhoto" checked> Photo at the end of the camera's view</label>
+        <label class="inline" id="us3dWrap"><input type="checkbox" id="show3dUS" checked> Ultrasound slice</label>
+        <span class="hint">Drag to orbit · Shift+drag to pan · scroll to zoom. Move the CT in the other views; this one follows.</span>
+      </div>
+      <div class="toolbar" id="shapeOpts" hidden>
+        <div class="seg" role="group" aria-label="Shape view" id="shapeViews">
+          <button data-sv="diff" aria-pressed="true">Tilt difference</button>
+          <button data-sv="photo">Depth-map shape</button>
+          <button data-sv="ct">CT shape</button>
+        </div>
+      </div>
+    </section>
+
+    <aside class="side">
+      <section class="card score" aria-label="Score">
+        <div class="jrow">
+          <div><div class="eyebrow">Goal J (lower is better)</div><div class="hint">J = A / 4.5 + B / 0.02</div></div>
+          <div class="big" id="sJ">–</div>
+        </div>
+        <div class="tumbox" id="tumRow" hidden>
+          <div class="jrow">
+            <div><div class="eyebrow">Tumour error (the real answer)</div><div class="hint" id="tumSub"></div></div>
+            <div class="big" id="sT">–</div>
+          </div>
+        </div>
+        <div class="metrics">
+          <div class="metric"><span>Outline gap A</span><b id="sA">–</b></div>
+          <div class="metric"><span>Shape B</span><b id="sB">–</b></div>
+          <div class="metric"><span>Overlap (Dice)</span><b id="sD">–</b></div>
+          <div class="metric"><span>CT distance</span><b id="sZ">–</b></div>
+          <div class="metric"><span id="lRot">Rotation off</span><b id="sR">–</b></div>
+          <div class="metric"><span>Distance off</span><b id="sP">–</b></div>
+          <div class="metric"><span>Centre off</span><b id="sC">–</b></div>
+          <div class="metric" title="How far the bend moved the tissue: mean / largest"><span>Bend</span><b id="sM">0 mm</b></div>
+        </div>
+        <div class="verdict" id="verdict"></div>
+      </section>
+
+      <details class="step card" open>
+        <summary><span class="n">01</span><h2>What the method gets</h2><span class="s">Photo, mask, camera, CT, depth shape</span></summary>
+        <div class="body">
+          <p id="sceneNote"></p>
+          <dl class="kv" id="inputs"></dl>
+          <p class="hint">The amber line is the liver mask: the pixels that show liver. The tinted 3D shape is the CT liver, drawn through the camera.</p>
+        </div>
+      </details>
+
+      <details class="step card">
+        <summary><span class="n">02</span><h2>Use the real camera</h2><span class="s">Same lens as the photo, or the size lies</span></summary>
+        <div class="body">
+          <p>The CT is drawn through a virtual camera with the photo's focal length and centre. A shorter focal length (wider lens) makes the same liver look smaller, so the "right size" would appear at the wrong distance.</p>
+          <div class="slider"><label for="fmul">Focal length</label><input type="range" id="fmul" min="0.6" max="1.6" step="0.05" value="1"><output id="fmulOut">×1.00</output></div>
+          <p class="hint">Try it: set ×0.7, press <b>Auto size &amp; centre</b> (step 4), and watch "CT distance" and "Distance off" in the score.</p>
+        </div>
+      </details>
+
+      <details class="step card">
+        <summary><span class="n">03</span><h2>Find the rough pose</h2><span class="s">Which side faces the camera, where the head is</span></summary>
+        <div class="body">
+          <p>This is the hard step. Very different poses can give the same outline, and the polish in step 6 only fixes small errors. Three ways to get close:</p>
+          <h3 style="font-size:14px">a. A hint, like the VLM would give</h3>
+          <div class="row" style="align-items:flex-start;gap:14px">
+            <div style="display:grid;gap:6px;min-width:0">
+              <label class="inline" for="partSel">Part facing the camera</label>
+              <select id="partSel"></select>
+            </div>
+            <div style="display:grid;gap:6px">
+              <span class="inline">Head points</span>
+              <div class="compass" id="compass"></div>
+            </div>
+          </div>
+          <div class="row"><button class="btn primary" id="placeHint">Place CT from hint</button></div>
+          <h3 style="font-size:14px">b. Try many starts</h3>
+          <p class="hint">768 cameras all around the liver (96 directions × 8 roll angles), each sized and centred on the mask, then scored with J.</p>
+          <div class="row"><button class="btn" id="search">Search all around</button><span class="hint" id="searchInfo"></span></div>
+          <div class="progress"><i id="searchBar"></i></div>
+          <div class="results" id="results"></div>
+          <h3 style="font-size:14px">c. By hand</h3>
+          <p class="hint">Rotate tool: drag to tilt the liver. Spin tool: drag left/right to turn it in the picture.</p>
+        </div>
+      </details>
+
+      <details class="step card">
+        <summary><span class="n">04</span><h2>Size and position</h2><span class="s">The distance follows from lens + CT size</span></summary>
+        <div class="body">
+          <p>A liver of known size, seen through a known lens, has the right size in the picture at only one distance. So once the rotation is roughly right, the distance and the sideways position can be read off the mask.</p>
+          <div class="row"><button class="btn primary" id="autoSize">Auto size &amp; centre</button></div>
+          <p class="hint">By hand: scroll on the picture (or the Distance tool) moves the CT along the line of sight; the Move tool shifts it sideways.</p>
+        </div>
+      </details>
+
+      <details class="step card">
+        <summary><span class="n">05</span><h2>Score the pose</h2><span class="s">Outline gap A and shape mismatch B</span></summary>
+        <div class="body">
+          <p><b>A</b>: how far apart the two outlines are, in pixels of the full 1920-wide image (mask to CT plus CT to mask). <b>B</b>: how much the tilt of the CT surface disagrees with the tilt in the depth map (0 = same, 0.02 ≈ 11°). The shape term is what separates poses with the same outline.</p>
+          <label class="inline"><input type="checkbox" id="useShape" checked> Include the shape term B in J</label>
+          <div class="shapes" id="shapes"></div>
+          <p class="hint">Switch the view to <b>Shape error</b> to see where the tilts disagree. On the synthetic scene, compare the perfect depth map with the distorted ones from our shape-trust test.</p>
+        </div>
+      </details>
+
+      <details class="step card">
+        <summary><span class="n">06</span><h2>Polish</h2><span class="s">Small automatic nudges that lower J</span></summary>
+        <div class="body">
+          <p>A local search (Nelder–Mead, the same settings as our tests: first steps of 10° and 20 mm, at most 300 tries) moves the pose in 3 rotations and 3 shifts and keeps whatever lowers J. It cannot jump from a wrong pose to a far-away right one.</p>
+          <div class="row"><button class="btn primary" id="polish">Polish</button><span class="hint" id="polishInfo"></span></div>
+          <div class="progress"><i id="polishBar"></i></div>
+        </div>
+      </details>
+
+      <details class="step card">
+        <summary><span class="n">07</span><h2>Bend the liver</h2><span class="s">Gas and tools push the liver out of its CT shape</span></summary>
+        <div class="body">
+          <p>LIBR describes the bend as a few pushes at control points on the liver, each spreading through the tissue. Choose the <b>Bend</b> tool and drag a dot: the tissue around it follows.</p>
+          <div class="slider"><label for="sigma">Reach of a push</label><input type="range" id="sigma" min="15" max="80" step="1" value="40"><output id="sigmaOut">40 mm</output></div>
+          <div class="row"><button class="btn" id="resetBend">Remove bend</button></div>
+          <p class="note">Simplified: each push spreads as a smooth bump. Real LIBR uses precomputed elastic responses of the CT liver, adds a penalty for strain energy, and fits the pushes automatically.</p>
+        </div>
+      </details>
+
+      <details class="step card">
+        <summary><span class="n">08</span><h2>Check the answer</h2><span class="s" id="checkSub">Compare with the reference pose</span></summary>
+        <div class="body">
+          <p id="checkText"></p>
+          <label class="inline"><input type="checkbox" id="showRef"> Show the reference outline (pink)</label>
+          <div class="row"><button class="btn" id="jumpRef">Jump to the reference</button></div>
+          <div class="results" id="refBtns"></div>
+        </div>
+      </details>
+    </aside>
+  </div>
+</div>
+
+<script src="https://cdnjs.cloudflare.com/ajax/libs/three.js/r128/three.min.js"></script>
+<script>
+"use strict";
+const DATA = /*__DATA__*/null;
+const CW = 480, CH = 270, NPX = CW * CH, DOWN = 4, WA = 4.5, WB = 0.02;
+let IMW = 1920, IMH = 1080;                    // photo size of the current scene (LLR-LUS patient 3 is 3840 x 2160)
+
+/* ---------- small linear algebra (R row-major 9, vectors 3) ---------- */
+const mv = (R, v) => [R[0]*v[0]+R[1]*v[1]+R[2]*v[2], R[3]*v[0]+R[4]*v[1]+R[5]*v[2], R[6]*v[0]+R[7]*v[1]+R[8]*v[2]];
+const mtv = (R, v) => [R[0]*v[0]+R[3]*v[1]+R[6]*v[2], R[1]*v[0]+R[4]*v[1]+R[7]*v[2], R[2]*v[0]+R[5]*v[1]+R[8]*v[2]];
+const mm = (A, B) => { const C = new Array(9); for (let i = 0; i < 3; i++) for (let j = 0; j < 3; j++) C[i*3+j] = A[i*3]*B[j] + A[i*3+1]*B[3+j] + A[i*3+2]*B[6+j]; return C; };
+const tr = A => [A[0],A[3],A[6],A[1],A[4],A[7],A[2],A[5],A[8]];
+const add = (a, b) => [a[0]+b[0], a[1]+b[1], a[2]+b[2]];
+const sub = (a, b) => [a[0]-b[0], a[1]-b[1], a[2]-b[2]];
+const scl = (a, k) => [a[0]*k, a[1]*k, a[2]*k];
+const dot = (a, b) => a[0]*b[0] + a[1]*b[1] + a[2]*b[2];
+const cross = (a, b) => [a[1]*b[2]-a[2]*b[1], a[2]*b[0]-a[0]*b[2], a[0]*b[1]-a[1]*b[0]];
+const norm = a => Math.hypot(a[0], a[1], a[2]);
+const unit = a => scl(a, 1 / norm(a));
+const rad = d => d * Math.PI / 180, deg = r => r * 180 / Math.PI;
+function rodrigues(w) {                       // rotation vector (radians) -> matrix
+  const th = norm(w); if (th < 1e-12) return [1,0,0,0,1,0,0,0,1];
+  const [x, y, z] = scl(w, 1 / th), c = Math.cos(th), s = Math.sin(th), C = 1 - c;
+  return [c+x*x*C, x*y*C-z*s, x*z*C+y*s, y*x*C+z*s, c+y*y*C, y*z*C-x*s, z*x*C-y*s, z*y*C+x*s, c+z*z*C];
+}
+const rotAngle = (A, B) => deg(Math.acos(Math.max(-1, Math.min(1, (A[0]*B[0]+A[1]*B[1]+A[2]*B[2]+A[3]*B[3]+A[4]*B[4]+A[5]*B[5]+A[6]*B[6]+A[7]*B[7]+A[8]*B[8] - 1) / 2))));
+/* move the CT about its centre c (camera frame): X' = dR (X_cam - c) + c + dt */
+function perturbed(R, t, c, dR, dt = [0, 0, 0]) { return [mm(dR, R), add(add(mv(dR, sub(t, c)), c), dt)]; }
+function lookAt(centre, d, dist, roll) {      // vision camera at centre + dist*d, looking at the centre
+  d = unit(d); const z = scl(d, -1);
+  const up = Math.abs(z[2]) < 0.9 ? [0, 0, 1] : [1, 0, 0];
+  const x = unit(cross(z, up)), y = cross(z, x);
+  const R = mm(rodrigues([0, 0, rad(roll)]), [...x, ...y, ...z]);
+  return [R, scl(mv(R, add(centre, scl(d, dist))), -1)];
+}
+function fib(n) { const out = []; for (let i = 0; i < n; i++) { const k = i + 0.5, ph = Math.acos(1 - 2 * k / n), th = Math.PI * (1 + Math.sqrt(5)) * k; out.push([Math.cos(th) * Math.sin(ph), Math.sin(th) * Math.sin(ph), Math.cos(ph)]); } return out; }
+
+/* ---------- exact Euclidean distance transform (Felzenszwalb) ---------- */
+const INF = 1e20, _f = new Float64Array(CW), _d = new Float64Array(CW), _v = new Int32Array(CW), _z = new Float64Array(CW + 1);
+function dt1d(n) {
+  let k = 0; _v[0] = 0; _z[0] = -INF; _z[1] = INF;
+  for (let q = 1; q < n; q++) {
+    let s = ((_f[q] + q*q) - (_f[_v[k]] + _v[k]*_v[k])) / (2*q - 2*_v[k]);
+    while (s <= _z[k]) { k--; s = ((_f[q] + q*q) - (_f[_v[k]] + _v[k]*_v[k])) / (2*q - 2*_v[k]); }
+    k++; _v[k] = q; _z[k] = s; _z[k+1] = INF;
+  }
+  k = 0; for (let q = 0; q < n; q++) { while (_z[k+1] < q) k++; _d[q] = (q - _v[k]) * (q - _v[k]) + _f[_v[k]]; }
+}
+function edt(mask, out) {                       // distance (px) of every pixel to the nearest mask pixel
+  const g = out || new Float32Array(NPX);
+  for (let i = 0; i < NPX; i++) g[i] = mask[i] ? 0 : INF;
+  for (let u = 0; u < CW; u++) { for (let v = 0; v < CH; v++) _f[v] = g[v*CW+u]; dt1d(CH); for (let v = 0; v < CH; v++) g[v*CW+u] = _d[v]; }
+  for (let v = 0; v < CH; v++) { const o = v*CW; for (let u = 0; u < CW; u++) _f[u] = g[o+u]; dt1d(CW); for (let u = 0; u < CW; u++) g[o+u] = Math.sqrt(_d[u]); }
+  return g;
+}
+
+/* ---------- three.js: one camera = the real lens, two scenes (display, measurement) ---------- */
+const stage = document.getElementById("stage"), glc = document.getElementById("gl"), ov = document.getElementById("ov"), photoEl = document.getElementById("photo");
+const renderer = new THREE.WebGLRenderer({ canvas: glc, alpha: true, antialias: true });
+renderer.setClearColor(0x000000, 0);
+const camera = new THREE.Camera(); camera.matrixAutoUpdate = false;
+const rt = new THREE.WebGLRenderTarget(CW, CH, { minFilter: THREE.NearestFilter, magFilter: THREE.NearestFilter });
+const pix = new Uint8Array(NPX * 4);
+const dScene = new THREE.Scene(), cScene = new THREE.Scene();
+const viewPosNormal = `varying vec3 vN; varying vec3 vP;`;
+const vs = `${viewPosNormal} attribute vec3 pcol; varying vec3 vC; uniform vec3 uTone; uniform float uByPart;
+  void main(){ vec4 p = modelViewMatrix * vec4(position, 1.0); vP = p.xyz; vN = normalMatrix * normal; vC = mix(uTone, pcol, uByPart); gl_Position = projectionMatrix * p; }`;
+const dispMat = new THREE.ShaderMaterial({
+  uniforms: { uTone: { value: new THREE.Color(0.30, 0.78, 0.88) }, uByPart: { value: 0 }, uOpacity: { value: 0.55 } },
+  vertexShader: vs,
+  fragmentShader: `${viewPosNormal} varying vec3 vC; uniform float uOpacity;
+    void main(){ vec3 n = normalize(vN); vec3 e = normalize(-vP); if (dot(n, e) < 0.0) n = -n;
+      float l = max(dot(n, e), 0.0); vec3 c = vC * (0.32 + 0.68 * l) + vec3(0.22) * pow(l, 28.0); gl_FragColor = vec4(c, uOpacity); }`,
+  side: THREE.DoubleSide, transparent: true, depthWrite: false, depthFunc: THREE.LessEqualDepth });
+const preMat = new THREE.MeshBasicMaterial({ colorWrite: false, side: THREE.DoubleSide });
+/* measurement pass: normal facing the camera in vision axes (x right, y down, z forward), packed as rgb */
+const measMat = new THREE.ShaderMaterial({
+  vertexShader: `${viewPosNormal} void main(){ vec4 p = modelViewMatrix * vec4(position, 1.0); vP = p.xyz; vN = normalMatrix * normal; gl_Position = projectionMatrix * p; }`,
+  fragmentShader: `${viewPosNormal} void main(){ vec3 n = normalize(vN); if (dot(n, -vP) < 0.0) n = -n; gl_FragColor = vec4(vec3(n.x, -n.y, -n.z) * 0.5 + 0.5, 1.0); }`,
+  side: THREE.DoubleSide });
+let geom = null, preMesh = null, dispMesh = null, measMesh = null, tumGeom = null, tumMesh = null;
+const tumMat = new THREE.ShaderMaterial({
+  vertexShader: `${viewPosNormal} void main(){ vec4 p = modelViewMatrix * vec4(position, 1.0); vP = p.xyz; vN = normalMatrix * normal; gl_Position = projectionMatrix * p; }`,
+  fragmentShader: `${viewPosNormal} void main(){ vec3 n = normalize(vN); vec3 e = normalize(-vP); float l = abs(dot(n, e));
+    gl_FragColor = vec4(vec3(0.95, 0.16, 0.42) * (0.45 + 0.55 * l), 0.55); }`,
+  side: THREE.DoubleSide, transparent: true, depthTest: false, depthWrite: false });
+
+function setProjection() {
+  const fx = st.K[0] * st.fmul, fy = st.K[4] * st.fmul, cx = st.K[2], cy = st.K[5], n = 5, f = 5000;
+  camera.projectionMatrix.set(2*fx/IMW, 0, 1 - 2*cx/IMW, 0,  0, 2*fy/IMH, 2*cy/IMH - 1, 0,  0, 0, -(f+n)/(f-n), -2*f*n/(f-n),  0, 0, -1, 0);
+  camera.projectionMatrixInverse.copy(camera.projectionMatrix).invert();
+}
+function setMeshPose(mesh, R, t) {            // vision camera -> GL camera = flip y and z
+  mesh.matrix.set(R[0], R[1], R[2], t[0], -R[3], -R[4], -R[5], -t[1], -R[6], -R[7], -R[8], -t[2], 0, 0, 0, 1);
+  mesh.matrixWorldNeedsUpdate = true;
+}
+
+/* ---------- scene state ---------- */
+let st = null;
+const decode = (b64, Type) => { const s = atob(b64), u = new Uint8Array(s.length); for (let i = 0; i < s.length; i++) u[i] = s.charCodeAt(i); return new Type(u.buffer); };
+async function pixels(src) {
+  const blob = await (await fetch(src)).blob();
+  const bmp = await createImageBitmap(blob, { premultiplyAlpha: "none", colorSpaceConversion: "none" });
+  const c = document.createElement("canvas"); c.width = CW; c.height = CH;
+  const x = c.getContext("2d", { willReadFrequently: true }); x.drawImage(bmp, 0, 0, CW, CH);
+  return x.getImageData(0, 0, CW, CH).data;
+}
+
+async function loadScene(i) {
+  const sc = DATA.scenes[i];
+  const mesh = typeof sc.mesh === "string" ? DATA.meshes[sc.mesh] : sc.mesh;   // LUS: one CT per patient
+  IMW = sc.size ? sc.size[0] : 1920; IMH = sc.size ? sc.size[1] : 1080;
+  const K = sc.K.flat();
+  const mask = await pixels(sc.mask), vis = await pixels(sc.visible);
+  const M = new Uint8Array(NPX), V = new Uint8Array(NPX); let nM = 0, uM = 0, vM = 0;
+  for (let p = 0; p < NPX; p++) { M[p] = mask[p*4] > 127; V[p] = vis[p*4] > 127; if (M[p]) { nM++; uM += p % CW; vM += (p / CW) | 0; } }
+  const shapes = [];
+  for (const s of sc.shapes) {
+    const d = await pixels(s.normals), N = new Float32Array(NPX * 3), ok = new Uint8Array(NPX);
+    for (let p = 0; p < NPX; p++) { ok[p] = d[p*4+3] > 127; if (ok[p]) { const n = unit([d[p*4]/127.5-1, d[p*4+1]/127.5-1, d[p*4+2]/127.5-1]); N.set(n, p*3); } }
+    shapes.push({ name: s.name, N, ok });
+  }
+  const base = decode(mesh.v, Float32Array), faces = decode(mesh.f, Uint32Array), part = decode(mesh.part, Uint8Array);
+  const pcol = new Float32Array(base.length);
+  for (let v = 0; v < part.length; v++) { const c = DATA.colours[part[v]]; pcol.set([c[0]/255, c[1]/255, c[2]/255], v*3); }
+  st = { sc, K, fmul: 1, M, V, nM, uM: uM / nM + 0.5, vM: vM / nM + 0.5, dtM: edt(M), shapes, shapeIdx: 0, useShape: true,
+         base, mesh, centre: mesh.centre, R: null, t: null, ref: { R: sc.ref.R.flat(), t: sc.ref.t }, handles: [], sigma: 40, history: [], refS: null,
+         profile: sc.profile ? decode(sc.profile, Float32Array) : null,
+         face: sc.face ? decode(sc.face, Float32Array) : null,
+         tumBase: mesh.tumour ? decode(mesh.tumour.v, Float32Array) : null,
+         tumF: mesh.tumour ? decode(mesh.tumour.f, Uint32Array) : null };
+  // the tumour (LUS only): drawn see-through on top of the liver, bent with it
+  if (tumGeom) { dScene.remove(tumMesh); tumGeom.dispose(); tumGeom = null; }
+  if (st.tumBase) {
+    tumGeom = new THREE.BufferGeometry();
+    tumGeom.setAttribute("position", new THREE.BufferAttribute(st.tumBase.slice(), 3));
+    tumGeom.setIndex(new THREE.BufferAttribute(st.tumF, 1));
+    tumGeom.computeVertexNormals();
+    tumMesh = new THREE.Mesh(tumGeom, tumMat); tumMesh.matrixAutoUpdate = false; tumMesh.renderOrder = 3; tumMesh.frustumCulled = false;
+    dScene.add(tumMesh);
+  }
+  // geometry shared by the three meshes
+  if (geom) { dScene.remove(preMesh, dispMesh); cScene.remove(measMesh); geom.dispose(); }
+  geom = new THREE.BufferGeometry();
+  geom.setAttribute("position", new THREE.BufferAttribute(base.slice(), 3));
+  geom.setAttribute("pcol", new THREE.BufferAttribute(pcol, 3));
+  geom.setIndex(new THREE.BufferAttribute(faces, 1));
+  geom.computeVertexNormals();
+  const mk = (m, order) => { const o = new THREE.Mesh(geom, m); o.matrixAutoUpdate = false; o.renderOrder = order; o.frustumCulled = false; return o; };
+  preMesh = mk(preMat, 0); dispMesh = mk(dispMat, 1); measMesh = mk(measMat, 0);
+  dScene.add(preMesh, dispMesh); cScene.add(measMesh);
+  // LIBR-style control points: farthest-point sample of the CT surface
+  const nv = base.length / 3, far = new Float32Array(nv).fill(1e30); let cur = 0;
+  for (let h = 0; h < 40; h++) {
+    st.handles.push({ idx: cur, p: [base[cur*3], base[cur*3+1], base[cur*3+2]], d: [0, 0, 0] });
+    let best = -1, bi = 0;
+    for (let v = 0; v < nv; v++) { const dx = base[v*3]-base[cur*3], dy = base[v*3+1]-base[cur*3+1], dz = base[v*3+2]-base[cur*3+2], q = dx*dx+dy*dy+dz*dz; if (q < far[v]) far[v] = q; if (far[v] > best) { best = far[v]; bi = v; } }
+    cur = bi;
+  }
+  photoEl.src = sc.photo;
+  setProjection();
+  build3d();
+  fillPanels();
+  startPose();
+  computeRefSilhouette();
+  redraw(); legend();
+}
+
+/* ---------- 3D view: the laparoscope, its view, the CT, the ultrasound slice ---------- */
+const s3 = new THREE.Scene(), cam3 = new THREE.PerspectiveCamera(38, 16 / 9, 2, 8000);
+const liver3Mat = dispMat.clone(); liver3Mat.uniforms.uOpacity.value = 0.38;
+const tum3Mat = new THREE.ShaderMaterial({
+  vertexShader: `${viewPosNormal} void main(){ vec4 p = modelViewMatrix * vec4(position, 1.0); vP = p.xyz; vN = normalMatrix * normal; gl_Position = projectionMatrix * p; }`,
+  fragmentShader: `${viewPosNormal} void main(){ vec3 n = normalize(vN); float l = abs(dot(n, normalize(-vP))); gl_FragColor = vec4(vec3(0.95, 0.16, 0.42) * (0.35 + 0.65 * l), 1.0); }`,
+  side: THREE.DoubleSide });
+let g3 = null, liver3 = null, tum3 = null, photo3 = null, us3 = null, lapView = false;
+const orbit = { target: new THREE.Vector3(), r: 400, yaw: 0.9, pitch: 0.45 };
+const toGL = (P, n) => { const out = new Float32Array(n * 3); for (let i = 0; i < n; i++) { out[i*3] = P[i*3]; out[i*3+1] = -P[i*3+1]; out[i*3+2] = -P[i*3+2]; } return out; };
+function build3d() {
+  if (g3) { s3.remove(g3); g3.traverse(o => { if (o.geometry && o.geometry !== geom && o.geometry !== tumGeom) o.geometry.dispose(); }); }
+  g3 = new THREE.Group(); s3.add(g3);
+  liver3 = new THREE.Mesh(geom, liver3Mat); liver3.matrixAutoUpdate = false; liver3.renderOrder = 2; liver3.frustumCulled = false; g3.add(liver3);
+  if (tumGeom) { tum3 = new THREE.Mesh(tumGeom, tum3Mat); tum3.matrixAutoUpdate = false; tum3.frustumCulled = false; g3.add(tum3); } else tum3 = null;
+  // the laparoscope's view: a pyramid from the camera centre to a "screen" with the photo, behind the liver
+  const cr = add(mv(st.ref.R, st.centre), st.ref.t), Dz = 1.35 * norm(cr), K = st.K;
+  const corner = (u, v) => [(u - K[2]) / K[0] * Dz, -(v - K[5]) / K[4] * Dz, -Dz];
+  const C4 = [corner(0, 0), corner(IMW, 0), corner(IMW, IMH), corner(0, IMH)];
+  const fr = []; C4.forEach((c, i) => { fr.push(0, 0, 0, ...c, ...c, ...C4[(i + 1) % 4]); });
+  const fg = new THREE.BufferGeometry(); fg.setAttribute("position", new THREE.Float32BufferAttribute(fr, 3));
+  g3.add(new THREE.LineSegments(fg, new THREE.LineBasicMaterial({ color: 0x9fb3bf })));
+  const quad = (C, img, opacity) => {
+    const q = new THREE.BufferGeometry();
+    q.setAttribute("position", new THREE.Float32BufferAttribute(C.flat(), 3));
+    q.setAttribute("uv", new THREE.Float32BufferAttribute([0, 1, 1, 1, 1, 0, 0, 0], 2));
+    q.setIndex([0, 1, 2, 0, 2, 3]);
+    const tex = new THREE.TextureLoader().load(img, () => later());
+    return new THREE.Mesh(q, new THREE.MeshBasicMaterial({ map: tex, side: THREE.DoubleSide, transparent: true, opacity, depthWrite: false }));
+  };
+  photo3 = quad(C4, st.sc.photo, 0.85); photo3.renderOrder = 0; g3.add(photo3);
+  const cam = new THREE.Mesh(new THREE.SphereGeometry(3, 16, 12), new THREE.MeshBasicMaterial({ color: 0xffffff })); g3.add(cam);
+  us3 = null;
+  if (st.profile) {
+    const n = st.profile.length / 3, pg = new THREE.BufferGeometry();
+    pg.setAttribute("position", new THREE.BufferAttribute(toGL(st.profile, n), 3));
+    const pts = new THREE.Points(pg, new THREE.PointsMaterial({ color: 0x2fe07a, size: 6, sizeAttenuation: false, depthTest: false }));
+    pts.renderOrder = 5; g3.add(pts);
+  }
+  if (st.face) {
+    const n = st.face.length / 3, lg = new THREE.BufferGeometry();
+    lg.setAttribute("position", new THREE.BufferAttribute(toGL(st.face, n), 3));
+    g3.add(new THREE.Line(lg, new THREE.LineBasicMaterial({ color: 0xffd400 })));
+  }
+  if (st.sc.usq) { us3 = quad(st.sc.usq.map(c => [c[0], -c[1], -c[2]]), st.sc.usimg, 0.55); us3.renderOrder = 4; g3.add(us3); }
+  document.getElementById("us3dWrap").hidden = !st.sc.usq;
+  reset3d(cr);
+}
+function reset3d(cr) {
+  cr = cr || add(mv(st.R, st.centre), st.t);
+  orbit.target.set(cr[0], -cr[1], -cr[2]); orbit.r = 2.4 * norm(cr); orbit.yaw = 0.95; orbit.pitch = 0.42; lapView = false;
+}
+function render3d() {
+  setMeshPose(liver3, st.R, st.t); if (tum3) { setMeshPose(tum3, st.R, st.t); tum3.visible = !st.profile || truthOn(); }
+  photo3.visible = document.getElementById("show3dPhoto").checked;
+  if (us3) us3.visible = document.getElementById("show3dUS").checked;
+  g3.children.forEach(o => { if (o.isPoints) o.visible = truthOn(); });
+  const o = orbit, c = Math.cos(o.pitch);
+  cam3.position.set(o.target.x + o.r * c * Math.sin(o.yaw), o.target.y + o.r * Math.sin(o.pitch), o.target.z + o.r * c * Math.cos(o.yaw));
+  cam3.lookAt(o.target); cam3.updateMatrixWorld();
+  renderer.render(s3, lapView ? camera : cam3);
+}
+
+function startPose() {
+  const best = (st.sc.refs || []).find(r => r.bend);   // LLR-LUS: open on the best registration the data allows
+  if (best) { st.R = best.R.flat(); st.t = best.t.slice(); setBend(best.bend); return; }
+  const c = st.mesh.classes.find(k => k.part === 2 && k.head === 0);
+  st.R = c.R.flat(); st.t = c.t.slice();
+  sizeCentre(3);
+}
+
+/* ---------- measurement: render the CT at the measurement size and score it ---------- */
+function measure(R, t) {
+  setMeshPose(measMesh, R, t);
+  renderer.setRenderTarget(rt); renderer.setClearColor(0x000000, 0); renderer.clear();
+  renderer.render(cScene, camera);
+  renderer.readRenderTargetPixels(rt, 0, 0, CW, CH, pix);
+  renderer.setRenderTarget(null);
+  const S = new Uint8Array(NPX);
+  for (let r = 0; r < CH; r++) { const v = CH - 1 - r; for (let u = 0; u < CW; u++) S[v*CW+u] = pix[(r*CW+u)*4+3] > 0 ? 1 : 0; }
+  return S;
+}
+const pj = (v, u) => ((CH - 1 - v) * CW + u) * 4;      // pixel (row v, column u) in the read-back buffer
+const _dtS = new Float32Array(NPX);
+function evaluate(R, t, keep = false) {
+  const S = measure(R, t), M = st.M, V = st.V, dtM = st.dtM;
+  let nS = 0, nSv = 0, inter = 0;
+  for (let p = 0; p < NPX; p++) if (S[p]) { nS++; if (V[p]) { nSv++; if (M[p]) inter++; } }
+  const out = { S, nS, dice: 2 * inter / (nSv + st.nM), A: 1000, B: 1, J: 0 };
+  if (nS) {
+    edt(S, _dtS);
+    let a1 = 0, a2 = 0;
+    for (let p = 0; p < NPX; p++) { if (M[p]) a1 += _dtS[p]; if (S[p] && V[p]) a2 += dtM[p]; }
+    out.A = (a1 / st.nM + (nSv ? a2 / nSv : 0)) * DOWN;
+    const sh = st.shapes[st.shapeIdx]; let sum = 0, cnt = 0;
+    const diff = keep ? new Float32Array(NPX).fill(-1) : null;
+    for (let v = 1; v < CH - 1; v++) for (let u = 1; u < CW - 1; u++) {
+      const p = v*CW + u;
+      if (!(M[p] && S[p] && sh.ok[p] && S[p-1] && S[p+1] && S[p-CW] && S[p+CW])) continue;
+      const j = pj(v, u), n = unit([pix[j]/127.5-1, pix[j+1]/127.5-1, pix[j+2]/127.5-1]);
+      const c = n[0]*sh.N[p*3] + n[1]*sh.N[p*3+1] + n[2]*sh.N[p*3+2];
+      sum += 1 - c; cnt++; if (diff) diff[p] = deg(Math.acos(Math.max(-1, Math.min(1, c))));
+    }
+    if (cnt > 20) out.B = sum / cnt;
+    if (keep) { out.diff = diff; out.ctN = new Uint8Array(pix); }
+  }
+  out.J = out.A / WA + (st.useShape ? out.B / WB : 0);
+  return out;
+}
+/* size and centre (as in our scripts): match the silhouette area and centroid to the mask's */
+function sizeCentreOf(R, t, iters = 1) {
+  for (let k = 0; k < iters; k++) {
+    const S = measure(R, t); let n = 0, nv = 0, us = 0, vs = 0, ua = 0, va = 0;
+    for (let p = 0; p < NPX; p++) if (S[p]) { const u = p % CW + 0.5, v = ((p / CW) | 0) + 0.5; n++; ua += u; va += v; if (st.V[p]) { nv++; us += u; vs += v; } }
+    if (n < 20) break;
+    const c = add(mv(R, st.centre), t), f = Math.sqrt(Math.max(nv, 20) / st.nM);
+    let c2 = scl(c, f);
+    const uS = nv ? us / nv : ua / n, vS = nv ? vs / nv : va / n;
+    const fx = st.K[0] * st.fmul * CW / IMW, fy = st.K[4] * st.fmul * CH / IMH;
+    c2 = add(c2, [(st.uM - uS) * c2[2] / fx, (st.vM - vS) * c2[2] / fy, 0]);
+    t = add(t, sub(c2, c));
+  }
+  return [R, t];
+}
+function sizeCentre(iters) { [st.R, st.t] = sizeCentreOf(st.R, st.t, iters); }
+
+function withRestShape(fn) {
+  const pos = geom.attributes.position, saved = pos.array.slice();
+  pos.array.set(st.base); pos.needsUpdate = true; geom.computeVertexNormals();
+  const r = fn();
+  pos.array.set(saved); pos.needsUpdate = true; geom.computeVertexNormals();
+  return r;
+}
+function computeRefSilhouette() { st.refS = withRestShape(() => measure(st.ref.R, st.ref.t)); }
+
+/* ---------- drawing ---------- */
+let view = "photo", shapeView = "diff", tool = "rotate", last = null;
+const layer = document.createElement("canvas"); layer.width = CW; layer.height = CH;
+const lctx = layer.getContext("2d"); const limg = lctx.createImageData(CW, CH);
+const css = n => getComputedStyle(document.documentElement).getPropertyValue(n).trim();
+const hex = h => { h = h.replace("#", ""); return [parseInt(h.slice(0, 2), 16), parseInt(h.slice(2, 4), 16), parseInt(h.slice(4, 6), 16)]; };
+const VIR = [[68,1,84],[59,82,139],[33,145,140],[94,201,98],[253,231,37]];
+function heat(a) { const x = Math.min(a / 45, 1) * 4, i = Math.min(Math.floor(x), 3), f = x - i; return VIR[i].map((c, k) => c + (VIR[i+1][k] - c) * f); }
+const edge = (S, p) => S[p] && ((p % CW) === 0 || (p % CW) === CW - 1 || p < CW || p >= NPX - CW || !S[p-1] || !S[p+1] || !S[p-CW] || !S[p+CW]);
+
+function resize() {
+  const r = stage.getBoundingClientRect(), dpr = Math.min(window.devicePixelRatio || 1, 2);
+  renderer.setPixelRatio(dpr); renderer.setSize(r.width, r.height, false);
+  ov.width = Math.round(r.width * dpr); ov.height = Math.round(r.height * dpr);
+  if (st) redraw();
+}
+
+function redraw() {
+  if (!st) return;
+  setMeshPose(preMesh, st.R, st.t); setMeshPose(dispMesh, st.R, st.t);
+  if (tumMesh) { setMeshPose(tumMesh, st.R, st.t); tumMesh.visible = truthOn(); }
+  const e = evaluate(st.R, st.t, true); last = e;
+  glc.style.visibility = view === "photo" || view === "3d" ? "visible" : "hidden";
+  photoEl.style.opacity = view === "photo" ? 1 : view === "3d" ? 0 : 0.28;
+  renderer.setRenderTarget(null); renderer.setClearColor(0x000000, 0); renderer.clear();
+  if (view === "photo") renderer.render(dScene, camera);
+  if (view === "3d") { render3d(); ov.getContext("2d").clearRect(0, 0, ov.width, ov.height); score(e); return; }
+  // overlay layer at the measurement size
+  const d = limg.data; d.fill(0);
+  const put = (p, c, a = 255) => { d[p*4] = c[0]; d[p*4+1] = c[1]; d[p*4+2] = c[2]; d[p*4+3] = a; };
+  const cMask = hex(css("--mask")), cCt = hex(css("--ct")), cRef = hex(css("--ref"));
+  if (view === "outline") {
+    const om = hex(css("--only-mask")), oc = hex(css("--only-ct")), ob = hex(css("--both"));
+    for (let p = 0; p < NPX; p++) { const m = st.M[p], s = e.S[p] && st.V[p]; if (m && s) put(p, ob, 170); else if (m) put(p, om, 215); else if (s) put(p, oc, 215); }
+  } else if (view === "shape") {
+    const sh = st.shapes[st.shapeIdx];
+    for (let p = 0; p < NPX; p++) {
+      if (shapeView === "diff") { if (e.diff && e.diff[p] >= 0) put(p, heat(e.diff[p]), 235); }
+      else if (shapeView === "photo") { if (sh.ok[p]) put(p, [0, 1, 2].map(k => (sh.N[p*3+k] * 0.5 + 0.5) * 255), 235); }
+      else if (e.S[p]) { const j = pj((p / CW) | 0, p % CW); put(p, [e.ctN[j], e.ctN[j+1], e.ctN[j+2]], 235); }
+    }
+  }
+  if (document.getElementById("showMask").checked || view !== "photo") for (let p = 0; p < NPX; p++) if (edge(st.M, p)) put(p, cMask);
+  if (view === "photo") for (let p = 0; p < NPX; p++) if (edge(e.S, p)) put(p, cCt);
+  if (document.getElementById("showRef").checked && st.refS) for (let p = 0; p < NPX; p++) if (edge(st.refS, p) && ((p % CW) + ((p / CW) | 0)) % 4 < 3) put(p, cRef);
+  lctx.putImageData(limg, 0, 0);
+  const g = ov.getContext("2d"); g.clearRect(0, 0, ov.width, ov.height);
+  g.imageSmoothingEnabled = view === "shape" && shapeView !== "diff" ? true : false;
+  g.drawImage(layer, 0, 0, ov.width, ov.height);
+  if (tool === "bend") drawHandles(g);
+  if (truthOn()) drawProfile(g);
+  score(e);
+}
+const truthOn = () => !!st && !!st.profile && document.getElementById("showTruth").checked;
+function drawProfile(g) {                         // the ultrasound tumour outline: fixed in the camera, whatever the pose
+  const P = st.profile, sx = ov.width / IMW, dpr = ov.width / stage.getBoundingClientRect().width;
+  g.fillStyle = css("--us"); g.strokeStyle = "#04140a"; g.lineWidth = 1.5 * dpr;
+  for (let i = 0; i < P.length / 3; i++) {
+    const z = P[i*3+2]; if (z <= 0) continue;
+    const u = (st.K[0] * st.fmul * P[i*3] / z + st.K[2]) * sx, v = (st.K[4] * st.fmul * P[i*3+1] / z + st.K[5]) * sx;
+    g.beginPath(); g.arc(u, v, 3.2 * dpr, 0, 2 * Math.PI); g.fill(); g.stroke();
+  }
+  if (st.face) {                                  // the probe face, where it touches the liver
+    const F = st.face; g.beginPath(); g.strokeStyle = "#ffd400"; g.lineWidth = 2.5 * dpr;
+    for (let i = 0; i < F.length / 3; i++) { const z = F[i*3+2], u = (st.K[0] * st.fmul * F[i*3] / z + st.K[2]) * sx, v = (st.K[4] * st.fmul * F[i*3+1] / z + st.K[5]) * sx; i ? g.lineTo(u, v) : g.moveTo(u, v); }
+    g.stroke();
+  }
+}
+
+function handleScreen(h) {                        // control point on the deformed surface -> overlay pixels
+  const pos = geom.attributes.position.array, q = add(mv(st.R, [pos[h.idx*3], pos[h.idx*3+1], pos[h.idx*3+2]]), st.t);
+  const nrm = geom.attributes.normal.array, n = mv(st.R, [nrm[h.idx*3], nrm[h.idx*3+1], nrm[h.idx*3+2]]);
+  const sx = ov.width / IMW;
+  // computed normals may point in or out (mesh winding): orient them away from the CT centre
+  const outward = Math.sign(dot([nrm[h.idx*3], nrm[h.idx*3+1], nrm[h.idx*3+2]], sub([pos[h.idx*3], pos[h.idx*3+1], pos[h.idx*3+2]], st.centre))) || 1;
+  const facing = dot(scl(n, outward), q) < 0 && q[2] > 0;
+  return { u: (st.K[0] * st.fmul * q[0] / q[2] + st.K[2]) * sx, v: (st.K[4] * st.fmul * q[1] / q[2] + st.K[5]) * sx, z: q[2], facing, moved: norm(h.d) > 0.5 };
+}
+function drawHandles(g) {
+  const dpr = ov.width / stage.getBoundingClientRect().width;
+  for (const h of st.handles) {
+    const s = handleScreen(h); if (s.z <= 0) continue;
+    g.beginPath(); g.arc(s.u, s.v, (s.facing ? 7 : 4) * dpr, 0, 2 * Math.PI);
+    g.fillStyle = s.facing ? (s.moved ? "#ff6fb5" : "#ffffff") : "rgba(255,255,255,.25)"; g.fill();
+    if (s.facing) { g.lineWidth = 2 * dpr; g.strokeStyle = "#0b1114"; g.stroke(); }
+  }
+}
+
+function score(e) {
+  const f = (x, n) => Number.isFinite(x) ? x.toFixed(n) : "–";
+  document.getElementById("sJ").textContent = e.nS ? f(e.J, 2) : "no CT";
+  document.getElementById("sA").textContent = e.nS ? `${f(e.A, 1)} px` : "–";
+  document.getElementById("sB").textContent = e.B < 1 ? `${f(e.B, 3)} ≈ ${f(deg(Math.acos(1 - e.B)), 0)}°` : "no overlap";
+  document.getElementById("sD").textContent = f(e.dice, 3);
+  const c = add(mv(st.R, st.centre), st.t), cr = add(mv(st.ref.R, st.centre), st.ref.t);
+  const rotOff = rotAngle(st.R, st.ref.R), distOff = (norm(c) / norm(cr) - 1) * 100;
+  document.getElementById("sZ").textContent = `${f(norm(c), 0)} mm`;
+  document.getElementById("sR").textContent = `${f(rotOff, 1)}°`;
+  document.getElementById("sP").textContent = `${distOff >= 0 ? "+" : ""}${f(distOff, 1)} %`;
+  document.getElementById("sC").textContent = `${f(norm(sub(c, cr)), 0)} mm`;
+  const pos = geom.attributes.position.array; let mx = 0, mean = 0; const nv = st.base.length / 3;
+  for (let v = 0; v < nv; v++) { const m = Math.hypot(pos[v*3]-st.base[v*3], pos[v*3+1]-st.base[v*3+1], pos[v*3+2]-st.base[v*3+2]); mx = Math.max(mx, m); mean += m; }
+  document.getElementById("sM").textContent = mx < 0.05 ? "0 mm" : `${f(mean / nv, 1)} / ${f(mx, 0)} mm`;
+  const ok = rotOff <= 10 && Math.abs(distOff) <= 5, vd = document.getElementById("verdict");
+  const tumRow = document.getElementById("tumRow");
+  tumRow.hidden = !st.profile;
+  if (st.profile) {
+    if (!truthOn()) {
+      document.getElementById("sT").textContent = "hidden";
+      document.getElementById("tumSub").textContent = "Register blind, then tick “Show the tumour…” to check.";
+      vd.innerHTML = "The answer is hidden. Offsets below are from our pipeline's pose, not the truth.";
+    } else {
+      const te = tumourError();
+      document.getElementById("sT").textContent = `${f(te.mm, 1)} mm`;
+      document.getElementById("tumSub").textContent = `depth ${te.depth >= 0 ? "+" : ""}${f(te.depth, 1)} mm (+ = too far), sideways ${f(te.across, 1)} mm`;
+      vd.innerHTML = (te.mm <= 10 ? `<span class="ok">Within 1 cm</span> of the ultrasound tumour.` : `<span class="no">More than 1 cm off</span>: the pink CT tumour should cover the green ultrasound dots.`)
+        + ` Rotation and distance offsets are from our pipeline's pose, not the truth.`;
+    }
+  } else if (st.sc.refIsTruth) vd.innerHTML = ok ? `<span class="ok">Success</span> by our test rule (within 10° and 5 % of the true pose).` : `<span class="no">Not yet</span>: our tests count a success within 10° and 5 % of the true pose.`;
+  else vd.innerHTML = `Offsets are measured from <b>${st.sc.refName}</b>, which is a best guess, not the truth. ` + (ok ? "You are close to it." : "");
+}
+
+/* ---------- panels ---------- */
+function fillPanels() {
+  const sc = st.sc, K = st.K, b = st.base; let lo = [1e9,1e9,1e9], hi = [-1e9,-1e9,-1e9];
+  for (let i = 0; i < b.length; i += 3) for (let k = 0; k < 3; k++) { lo[k] = Math.min(lo[k], b[i+k]); hi[k] = Math.max(hi[k], b[i+k]); }
+  const ext = sub(hi, lo).map(x => x.toFixed(0));
+  document.getElementById("sceneNote").textContent = sc.note;
+  document.getElementById("tag").textContent = sc.title;
+  document.getElementById("inputs").innerHTML = `
+    <dt>Photo</dt><dd>${IMW} × ${IMH} px</dd>
+    <dt>Liver mask</dt><dd>${(100 * st.nM / NPX).toFixed(0)} % of the picture</dd>
+    <dt>Camera K</dt><dd>f ${K[0].toFixed(0)} px, centre (${K[2].toFixed(0)}, ${K[5].toFixed(0)})</dd>
+    <dt>Field of view</dt><dd>${(2 * deg(Math.atan(IMW / 2 / K[0]))).toFixed(0)}° wide</dd>
+    <dt>CT liver</dt><dd>${ext.join(" × ")} mm box, ${(b.length / 3).toLocaleString()} points</dd>
+    <dt>Depth shape</dt><dd>${st.shapes.map(s => s.name).join("; ")}</dd>`;
+  const sh = document.getElementById("shapes"); sh.innerHTML = "";
+  st.shapes.forEach((s, i) => { const l = document.createElement("label"); l.innerHTML = `<input type="radio" name="shape" value="${i}" ${i === st.shapeIdx ? "checked" : ""}> ${s.name}`; sh.appendChild(l); });
+  sh.onchange = ev => { st.shapeIdx = +ev.target.value; redraw(); };
+  document.getElementById("checkSub").textContent = sc.refIsTruth ? "Compare with the true pose" : "Compare with our pipeline's pose";
+  document.getElementById("checkText").textContent = sc.refIsTruth
+    ? "This view was drawn at a known pose, so the score card shows how far you are from the truth. Try finding a pose with a small outline gap A that is still far off: that is the ambiguity the shape term and the VLM hint are for."
+    : "There is no ground truth for real P2I-LReg photos. The reference is the pose our pipeline chose (camera on the patient's right, head toward image-left). Judge by eye whether yours is more plausible.";
+  document.getElementById("jumpRef").textContent = sc.refIsTruth ? "Show me the true pose" : "Jump to our pipeline's pose";
+  const rb = document.getElementById("refBtns"); rb.innerHTML = "";
+  document.getElementById("jumpRef").hidden = !!sc.refs;
+  document.getElementById("truthWrap").hidden = !sc.profile;
+  if (sc.profile) {
+    document.getElementById("checkSub").textContent = "Is the tumour where the ultrasound saw it?";
+    document.getElementById("checkText").innerHTML = "The <b>green dots</b> are the tumour's edge as seen by the tracked ultrasound probe, already in the camera's coordinates: they stay put whatever you do. The <b>pink shape</b> is the CT tumour, carried by your pose. "
+      + "Tumour error = mean distance from each green dot to the nearest point of the CT tumour (our per-image measure; the official LLR-LUS score pools all images of a patient, so it differs). Even a perfect pose can leave a few mm, because the real liver is deformed and the ultrasound sees only one slice. "
+      + "<br><br><b>Best possible</b> (pink border, from <code>goal/lus_best.py</code>) uses the answer: the ultrasound tumour, the tracked probe touching the liver, your mask and Koo's hand-labelled ridge and ligament. It is not a method; it shows what a correct registration looks like, and how far a rigid CT (and a modest bend) can get. The others are our pipeline's poses. Tumour error on the right:";
+  }
+  (sc.refs || []).forEach((r, k) => {
+    const b = document.createElement("button");
+    b.innerHTML = `<b>${k + 1}</b><span>${r.name}${r.info ? `<br><span class="m">${r.info}</span>` : ""}</span><span class="m">${r.mm.toFixed(1)} mm</span>`;
+    if (r.oracle) b.classList.add("oracle");
+    b.onclick = () => { pushHistory(); st.R = r.R.flat(); st.t = r.t.slice(); setBend(r.bend); redraw(); };
+    rb.appendChild(b);
+  });
+  document.getElementById("fmul").value = 1; document.getElementById("fmulOut").textContent = "×1.00";
+  document.getElementById("sigma").value = st.sigma; document.getElementById("sigmaOut").textContent = `${st.sigma} mm`;
+  document.getElementById("results").innerHTML = ""; document.getElementById("searchInfo").textContent = "";
+  document.getElementById("searchBar").style.width = "0"; document.getElementById("polishBar").style.width = "0"; document.getElementById("polishInfo").textContent = "";
+  document.getElementById("useShape").checked = st.useShape;
+}
+function legend() {
+  const L = document.getElementById("legend"), sw = (v, t, box) => `<span><i class="sw${box ? " box" : ""}" style="background:var(${v})"></i>${t}</span>`;
+  if (view === "photo") L.innerHTML = sw("--mask", "liver mask") + sw("--ct", "CT outline") + (document.getElementById("showRef").checked ? sw("--ref", "reference") : "")
+    + (truthOn() ? sw("--tum", "CT tumour (seen through the liver)", 1) + sw("--us", "ultrasound tumour = the answer", 1) : "") + `<span>Scroll or +/− = nearer/farther · Shift+drag or arrow keys = move</span>`;
+  else if (view === "outline") L.innerHTML = sw("--both", "both", 1) + sw("--only-mask", "liver the CT misses", 1) + sw("--only-ct", "CT where there is no liver", 1) + sw("--mask", "mask outline");
+  else if (shapeView === "diff") L.innerHTML = `<span>Tilt difference, CT vs depth map: 0°<i class="ramp" style="background:linear-gradient(90deg,${VIR.map(c => `rgb(${c})`).join(",")})"></i>45°+</span><span>only where both see liver</span>`;
+  else L.innerHTML = `<span>Surface tilt as colour: red = facing right, green = facing down, blue = facing away</span>`;
+  if (view === "3d") L.innerHTML = `<span><i class="sw" style="background:#9fb3bf"></i>laparoscope's view (white dot = camera)</span>` + sw("--ct", "CT liver", 1)
+    + (st && st.profile ? sw("--tum", "CT tumour", 1) + sw("--us", "ultrasound tumour = the answer", 1) + `<span><i class="sw" style="background:#ffd400"></i>probe face</span><span>textured plane = the ultrasound image</span>` : "");
+  document.getElementById("photoOpts").hidden = view !== "photo";
+  document.getElementById("opts3d").hidden = view !== "3d";
+  document.getElementById("shapeOpts").hidden = view !== "shape";
+}
+const HINTS = { rotate: "Drag to turn the liver. Shift+drag moves it sideways; scroll moves it nearer or farther.", spin: "Drag left or right to turn the liver in the picture.", move: "Drag to shift the CT sideways.", distance: "Drag up or down (or scroll) to move the CT nearer or farther.", bend: "Drag a white dot to push the tissue there." };
+
+/* ---------- interaction ---------- */
+function pushHistory() { st.history.push({ R: st.R.slice(), t: st.t.slice(), sigma: st.sigma, h: st.handles.map(h => ({ idx: h.idx, p: h.p, d: h.d.slice() })) }); if (st.history.length > 60) st.history.shift(); }
+function undo() { const h = st.history.pop(); if (!h) return; st.R = h.R; st.t = h.t; st.handles = h.h; setSigma(h.sigma); applyBend(); redraw(); }
+function setSigma(s) { st.sigma = s; document.getElementById("sigma").value = s; document.getElementById("sigmaOut").textContent = `${Math.round(s)} mm`; }
+function setBend(bend) {                          // load a fitted bend (control points + pushes), or remove the bend
+  if (bend) {
+    const b = st.base, nv = b.length / 3;
+    st.handles = bend.p.map((p, i) => { let best = 1e30, bi = 0; for (let v = 0; v < nv; v++) { const d = (b[v*3]-p[0])**2 + (b[v*3+1]-p[1])**2 + (b[v*3+2]-p[2])**2; if (d < best) { best = d; bi = v; } } return { idx: bi, p: p.slice(), d: bend.d[i].slice() }; });
+    setSigma(bend.sigma);
+  } else st.handles.forEach(h => h.d = [0, 0, 0]);
+  applyBend();
+}
+function applyBend() {
+  const pos = geom.attributes.position.array, b = st.base, s2 = 2 * st.sigma * st.sigma, act = st.handles.filter(h => norm(h.d) > 1e-6);
+  for (let v = 0; v < b.length; v += 3) {
+    let x = b[v], y = b[v+1], z = b[v+2], dx = 0, dy = 0, dz = 0;
+    for (const h of act) { const w = Math.exp(-((x-h.p[0])**2 + (y-h.p[1])**2 + (z-h.p[2])**2) / s2); dx += w * h.d[0]; dy += w * h.d[1]; dz += w * h.d[2]; }
+    pos[v] = x + dx; pos[v+1] = y + dy; pos[v+2] = z + dz;
+  }
+  geom.attributes.position.needsUpdate = true; geom.computeVertexNormals();
+  if (tumGeom) {                                 // the tumour moves with the tissue around it
+    const tp = tumGeom.attributes.position.array, tb = st.tumBase;
+    for (let v = 0; v < tb.length; v += 3) {
+      let dx = 0, dy = 0, dz = 0;
+      for (const h of act) { const w = Math.exp(-((tb[v]-h.p[0])**2 + (tb[v+1]-h.p[1])**2 + (tb[v+2]-h.p[2])**2) / s2); dx += w * h.d[0]; dy += w * h.d[1]; dz += w * h.d[2]; }
+      tp[v] = tb[v] + dx; tp[v+1] = tb[v+1] + dy; tp[v+2] = tb[v+2] + dz;
+    }
+    tumGeom.attributes.position.needsUpdate = true; tumGeom.computeVertexNormals();
+  }
+}
+function closestOnTriangle(p, a, b, c) {        // Ericson, Real-Time Collision Detection, 5.1.5
+  const ab = sub(b, a), ac = sub(c, a), ap = sub(p, a), d1 = dot(ab, ap), d2 = dot(ac, ap);
+  if (d1 <= 0 && d2 <= 0) return a;
+  const bp = sub(p, b), d3 = dot(ab, bp), d4 = dot(ac, bp);
+  if (d3 >= 0 && d4 <= d3) return b;
+  const vc = d1 * d4 - d3 * d2;
+  if (vc <= 0 && d1 >= 0 && d3 <= 0) return add(a, scl(ab, d1 / (d1 - d3)));
+  const cp = sub(p, c), d5 = dot(ab, cp), d6 = dot(ac, cp);
+  if (d6 >= 0 && d5 <= d6) return c;
+  const vb = d5 * d2 - d1 * d6;
+  if (vb <= 0 && d2 >= 0 && d6 <= 0) return add(a, scl(ac, d2 / (d2 - d6)));
+  const va = d3 * d6 - d5 * d4;
+  if (va <= 0 && d4 - d3 >= 0 && d5 - d6 >= 0) return add(b, scl(sub(c, b), (d4 - d3) / ((d4 - d3) + (d5 - d6))));
+  const den = 1 / (va + vb + vc); return add(a, add(scl(ab, vb * den), scl(ac, vc * den)));
+}
+/* tumour error against the ultrasound truth: mean distance from each profile point to the nearest CT tumour point */
+function tumourError() {
+  if (!st.profile || !tumGeom) return null;
+  const tp = tumGeom.attributes.position.array, n = tp.length / 3, cam = new Float32Array(tp.length), R = st.R, t = st.t;
+  for (let v = 0; v < n; v++) { const q = mv(R, [tp[v*3], tp[v*3+1], tp[v*3+2]]); cam[v*3] = q[0] + t[0]; cam[v*3+1] = q[1] + t[1]; cam[v*3+2] = q[2] + t[2]; }
+  const P = st.profile, np = P.length / 3, Fc = st.tumF, nf = Fc.length / 3; let mm_ = 0, depth = 0, across = 0, zt = 0, zp = 0;
+  const V3 = k => [cam[k*3], cam[k*3+1], cam[k*3+2]];
+  for (let i = 0; i < np; i++) {                 // nearest point on the tumour SURFACE (as Python's closest-point query)
+    const p = [P[i*3], P[i*3+1], P[i*3+2]]; let best = 1e30, bq = p;
+    for (let f = 0; f < nf; f++) { const q = closestOnTriangle(p, V3(Fc[f*3]), V3(Fc[f*3+1]), V3(Fc[f*3+2])); const d = (q[0]-p[0])**2 + (q[1]-p[1])**2 + (q[2]-p[2])**2; if (d < best) { best = d; bq = q; } }
+    mm_ += Math.sqrt(best); depth += bq[2] - p[2]; across += Math.hypot(bq[0] - p[0], bq[1] - p[1]); zt += p[2];
+  }
+  for (let v = 0; v < n; v++) zp += cam[v*3+2];
+  return { mm: mm_ / np, depth: depth / np, across: across / np, trueDepth: zt / np, ctDepth: zp / n };
+}
+let drag = null, raf = 0;
+const later = () => { if (!raf) raf = requestAnimationFrame(() => { raf = 0; redraw(); }); };
+stage.addEventListener("pointerdown", ev => {
+  if (busy) return;
+  if (view === "3d") { stage.setPointerCapture(ev.pointerId); drag = { x: ev.clientX, y: ev.clientY, orbit: true, pan: ev.shiftKey || ev.button === 2 }; return; }
+  stage.setPointerCapture(ev.pointerId); stage.classList.add("dragging");
+  const r = stage.getBoundingClientRect();
+  // Shift-drag or right-drag always moves sideways, Alt-drag always changes the distance, whatever tool is chosen
+  const eff = (ev.shiftKey || ev.button === 2) ? "move" : ev.altKey ? "distance" : tool;
+  drag = { x: ev.clientX, y: ev.clientY, h: null, tool: eff };
+  if (eff === "bend") {
+    const dpr = ov.width / r.width; let best = 22 * dpr;
+    for (const h of st.handles) { const s = handleScreen(h); if (!s.facing) continue; const dd = Math.hypot(s.u - (ev.clientX - r.left) * dpr, s.v - (ev.clientY - r.top) * dpr); if (dd < best) { best = dd; drag.h = h; } }
+    if (!drag.h) { drag = null; stage.classList.remove("dragging"); return; }
+  }
+  pushHistory();
+});
+stage.addEventListener("pointermove", ev => {
+  if (!drag) return;
+  const du = ev.clientX - drag.x, dv = ev.clientY - drag.y; drag.x = ev.clientX; drag.y = ev.clientY;
+  if (drag.orbit) {
+    lapView = false;
+    if (drag.pan) {
+      const right = new THREE.Vector3().setFromMatrixColumn(cam3.matrixWorld, 0), up = new THREE.Vector3().setFromMatrixColumn(cam3.matrixWorld, 1), k = orbit.r * 0.0016;
+      orbit.target.addScaledVector(right, -du * k).addScaledVector(up, dv * k);
+    } else { orbit.yaw -= du * 0.006; orbit.pitch = Math.max(-1.5, Math.min(1.5, orbit.pitch + dv * 0.006)); }
+    later(); return;
+  }
+  const r = stage.getBoundingClientRect(), pxScale = IMW / r.width;      // screen px -> 1920-image px
+  const c = add(mv(st.R, st.centre), st.t), tl = drag.tool;
+  if (tl === "rotate") [st.R, st.t] = perturbed(st.R, st.t, c, rodrigues([rad(dv * 0.35), rad(-du * 0.35), 0]));
+  else if (tl === "spin") [st.R, st.t] = perturbed(st.R, st.t, c, rodrigues([0, 0, rad(du * 0.35)]));
+  else if (tl === "move") st.t = add(st.t, [du * pxScale * c[2] / (st.K[0] * st.fmul), dv * pxScale * c[2] / (st.K[4] * st.fmul), 0]);
+  else if (tl === "distance") st.t = add(st.t, scl(c, Math.exp(dv * 0.004) - 1));
+  else if (tl === "bend" && drag.h) {
+    const s = handleScreen(drag.h);
+    const dc = [du * pxScale * s.z / (st.K[0] * st.fmul), dv * pxScale * s.z / (st.K[4] * st.fmul), 0];
+    drag.h.d = add(drag.h.d, mtv(st.R, dc)); applyBend();
+  }
+  later();
+});
+const endDrag = () => { drag = null; stage.classList.remove("dragging"); };
+stage.addEventListener("contextmenu", ev => ev.preventDefault());
+
+/* buttons and keys: fixed steps (medium = 5 mm sideways, 5 % distance, 5 deg) */
+function nudge(act, a) {
+  const s = +document.getElementById("stepSel").value, c = add(mv(st.R, st.centre), st.t);
+  if (act === "move") st.t = add(st.t, [a[0] * 5 * s, a[1] * 5 * s, 0]);
+  else if (act === "dist") st.t = add(st.t, scl(c, Math.pow(1 + 0.05 * s, a[0]) - 1));
+  else if (act === "turn") [st.R, st.t] = perturbed(st.R, st.t, c, rodrigues(a.map(x => rad(x * 5 * s))));
+  later();
+}
+const nudgeArgs = b => b.dataset.act === "move" ? [+b.dataset.x, +b.dataset.y] : b.dataset.act === "dist" ? [+b.dataset.k] : b.dataset.w.split(",").map(Number);
+document.querySelectorAll(".nb").forEach(b => {
+  let timer = null;
+  const stop = () => { clearTimeout(timer); clearInterval(timer); timer = null; };
+  b.addEventListener("pointerdown", ev => {
+    if (busy || !st) return; ev.preventDefault(); pushHistory(); nudge(b.dataset.act, nudgeArgs(b));
+    timer = setTimeout(() => { timer = setInterval(() => nudge(b.dataset.act, nudgeArgs(b)), 70); }, 350);
+  });
+  ["pointerup", "pointerleave", "pointercancel"].forEach(e => b.addEventListener(e, stop));
+  b.addEventListener("keydown", ev => { if (ev.key === "Enter" || ev.key === " ") { ev.preventDefault(); pushHistory(); nudge(b.dataset.act, nudgeArgs(b)); } });
+});
+stage.addEventListener("pointerup", endDrag); stage.addEventListener("pointercancel", endDrag);
+let wheelT = 0;
+stage.addEventListener("wheel", ev => {
+  ev.preventDefault(); if (busy) return;
+  if (view === "3d") { orbit.r *= Math.exp(ev.deltaY * 0.0012); lapView = false; later(); return; }
+  if (Date.now() - wheelT > 400) pushHistory(); wheelT = Date.now();
+  const c = add(mv(st.R, st.centre), st.t); st.t = add(st.t, scl(c, Math.exp(ev.deltaY * 0.0012) - 1)); later();
+}, { passive: false });
+
+function setTool(t) { tool = t; document.querySelectorAll("#tools button").forEach(b => b.setAttribute("aria-pressed", b.dataset.tool === t)); document.getElementById("toolHint").textContent = HINTS[t]; redraw(); }
+document.querySelectorAll("#tools button").forEach(b => b.onclick = () => setTool(b.dataset.tool));
+document.querySelectorAll("#views button").forEach(b => b.onclick = () => { view = b.dataset.view; document.querySelectorAll("#views button").forEach(x => x.setAttribute("aria-pressed", x === b)); legend(); redraw(); });
+document.querySelectorAll("#shapeViews button").forEach(b => b.onclick = () => { shapeView = b.dataset.sv; document.querySelectorAll("#shapeViews button").forEach(x => x.setAttribute("aria-pressed", x === b)); legend(); redraw(); });
+document.addEventListener("keydown", ev => {
+  if (ev.target.matches("input, select, textarea")) return;
+  if ((ev.ctrlKey || ev.metaKey) && ev.key.toLowerCase() === "z") { ev.preventDefault(); undo(); return; }
+  if (busy || !st || ev.target.closest(".nb")) return;
+  const keyMove = { ArrowLeft: ["move", [-1, 0]], ArrowRight: ["move", [1, 0]], ArrowUp: ["move", [0, -1]], ArrowDown: ["move", [0, 1]],
+    "-": ["dist", [-1]], "_": ["dist", [-1]], "+": ["dist", [1]], "=": ["dist", [1]], "[": ["turn", [0, 0, -1]], "]": ["turn", [0, 0, 1]] }[ev.key];
+  if (keyMove) { ev.preventDefault(); if (!ev.repeat) pushHistory(); nudge(...keyMove); return; }
+  const m = { r: "rotate", s: "spin", m: "move", d: "distance", b: "bend" }[ev.key.toLowerCase()]; if (m && !ev.ctrlKey && !ev.metaKey) setTool(m);
+});
+document.getElementById("undo").onclick = undo;
+document.getElementById("opacity").oninput = ev => { dispMat.uniforms.uOpacity.value = +ev.target.value; redraw(); };
+document.getElementById("byPart").onchange = ev => { dispMat.uniforms.uByPart.value = liver3Mat.uniforms.uByPart.value = ev.target.checked ? 1 : 0; redraw(); };
+document.getElementById("view3dReset").onclick = () => { reset3d(); redraw(); };
+document.getElementById("view3dLap").onclick = () => { lapView = true; redraw(); };
+["show3dPhoto", "show3dUS"].forEach(id => document.getElementById(id).onchange = redraw);
+document.getElementById("showMask").onchange = redraw;
+document.getElementById("showRef").onchange = () => { legend(); redraw(); };
+document.getElementById("showTruth").onchange = () => { legend(); redraw(); };
+document.getElementById("fmul").oninput = ev => { st.fmul = +ev.target.value; document.getElementById("fmulOut").textContent = `×${st.fmul.toFixed(2)}`; setProjection(); computeRefSilhouette(); redraw(); };
+document.getElementById("sigma").oninput = ev => { st.sigma = +ev.target.value; document.getElementById("sigmaOut").textContent = `${st.sigma} mm`; applyBend(); redraw(); };
+document.getElementById("resetBend").onclick = () => { pushHistory(); st.handles.forEach(h => h.d = [0, 0, 0]); applyBend(); redraw(); };
+document.getElementById("useShape").onchange = ev => { st.useShape = ev.target.checked; redraw(); };
+document.getElementById("autoSize").onclick = () => { pushHistory(); sizeCentre(3); redraw(); };
+document.getElementById("jumpRef").onclick = () => { pushHistory(); st.R = st.ref.R.slice(); st.t = st.ref.t.slice(); redraw(); };
+document.getElementById("restart").onclick = () => { st.fmul = 1; st.handles.forEach(h => h.d = [0, 0, 0]); applyBend(); fillPanels(); setProjection(); computeRefSilhouette(); startPose(); st.history = []; redraw(); };
+document.getElementById("sceneSel").onchange = ev => loadScene(+ev.target.value);
+
+// hint picker
+const partSel = document.getElementById("partSel"), compass = document.getElementById("compass");
+DATA.parts.forEach((p, i) => { const o = document.createElement("option"); o.value = i; o.textContent = p; partSel.appendChild(o); });
+partSel.value = 2;
+const COMPASS = [["up-left", 7], ["up", 0], ["up-right", 1], ["left", 6], null, ["right", 2], ["down-left", 5], ["down", 4], ["down-right", 3]];
+let headIdx = 0;
+COMPASS.forEach(c => {
+  if (!c) { const m = document.createElement("div"); m.className = "mid"; m.textContent = "in the picture"; compass.appendChild(m); return; }
+  const b = document.createElement("button"); b.textContent = { "up-left": "↖", up: "↑", "up-right": "↗", left: "←", right: "→", "down-left": "↙", down: "↓", "down-right": "↘" }[c[0]];
+  b.title = `head ${c[0]}`; b.setAttribute("aria-label", `head ${c[0]}`); b.setAttribute("aria-pressed", c[1] === headIdx);
+  b.onclick = () => { headIdx = c[1]; compass.querySelectorAll("button").forEach(x => x.setAttribute("aria-pressed", x === b)); };
+  compass.appendChild(b);
+});
+document.getElementById("placeHint").onclick = () => {
+  const c = st.mesh.classes.find(k => k.part === +partSel.value && k.head === headIdx);
+  pushHistory(); st.R = c.R.flat(); st.t = c.t.slice(); sizeCentre(3); redraw();
+};
+
+/* ---------- search all around, polish ---------- */
+let busy = false;
+const frame = () => new Promise(r => requestAnimationFrame(r));
+function setBusy(msg) { busy = !!msg; const b = document.getElementById("busy"); b.hidden = !msg; b.textContent = msg || ""; document.querySelectorAll("button.btn").forEach(x => x.disabled = !!msg); }
+document.getElementById("search").onclick = async () => {
+  setBusy("searching…"); pushHistory();
+  const dirs = fib(96), out = [], bar = document.getElementById("searchBar"), info = document.getElementById("searchInfo"), t0 = performance.now();
+  let i = 0;
+  for (const d of dirs) for (let roll = 0; roll < 360; roll += 45) {
+    let [R, t] = lookAt(st.centre, d, 180, roll); [R, t] = sizeCentreOf(R, t, 1);
+    const e = evaluate(R, t); out.push({ R, t, J: e.J, A: e.A, B: e.B });
+    if (++i % 24 === 0) { bar.style.width = `${100 * i / 768}%`; info.textContent = `${i} / 768`; await frame(); }
+  }
+  out.sort((a, b) => a.J - b.J);
+  const picked = [];
+  for (const r of out) { if (picked.every(p => rotAngle(p.R, r.R) > 25)) picked.push(r); if (picked.length === 6) break; }
+  bar.style.width = "100%"; info.textContent = `done in ${((performance.now() - t0) / 1000).toFixed(0)} s; best 6 distinct poses:`;
+  const box = document.getElementById("results"); box.innerHTML = "";
+  picked.forEach((r, k) => {
+    const b = document.createElement("button");
+    b.innerHTML = `<b>${k + 1}</b><span>J ${r.J.toFixed(2)} <span class="m">A ${r.A.toFixed(1)} px, B ${r.B.toFixed(3)}</span></span><span class="m">${rotAngle(r.R, st.ref.R).toFixed(0)}° from ref</span>`;
+    b.onclick = () => { pushHistory(); st.R = r.R.slice(); st.t = r.t.slice(); redraw(); };
+    box.appendChild(b);
+  });
+  st.R = picked[0].R.slice(); st.t = picked[0].t.slice();
+  setBusy(null); redraw();
+};
+document.getElementById("polish").onclick = async () => {
+  setBusy("polishing…"); pushHistory();
+  const R0 = st.R.slice(), t0 = st.t.slice(), c0 = add(mv(R0, st.centre), t0), bar = document.getElementById("polishBar"), info = document.getElementById("polishInfo");
+  const pose = x => perturbed(R0, t0, c0, rodrigues([rad(x[0]), rad(x[1]), rad(x[2])]), [x[3], x[4], x[5]]);
+  let fev = 0; const f = x => { fev++; return evaluate(...pose(x)).J; };
+  const n = 6, MAXFEV = 300;
+  let simplex = [new Array(6).fill(0)]; for (let i = 0; i < n; i++) { const x = new Array(6).fill(0); x[i] = i < 3 ? 10 : 20; simplex.push(x); }
+  let fs = simplex.map(f); const J0 = fs[0];
+  const lin = (a, b, k) => a.map((v, i) => v + k * (b[i] - v));       // a + k (b - a)
+  while (fev < MAXFEV) {
+    const ord = fs.map((v, i) => i).sort((a, b) => fs[a] - fs[b]); simplex = ord.map(i => simplex[i]); fs = ord.map(i => fs[i]);
+    const spread = Math.max(...simplex.slice(1).map(x => Math.max(...x.map((v, i) => Math.abs(v - simplex[0][i])))));
+    if (spread <= 0.1 && fs[n] - fs[0] <= 1e-3) break;
+    const cen = new Array(6).fill(0); for (let i = 0; i < n; i++) for (let k = 0; k < 6; k++) cen[k] += simplex[i][k] / n;
+    const xr = lin(cen, simplex[n], -1), fr = f(xr);
+    if (fr < fs[0]) { const xe = lin(cen, simplex[n], -2), fe = f(xe); if (fe < fr) { simplex[n] = xe; fs[n] = fe; } else { simplex[n] = xr; fs[n] = fr; } }
+    else if (fr < fs[n-1]) { simplex[n] = xr; fs[n] = fr; }
+    else {
+      const outside = fr < fs[n], xc = outside ? lin(cen, xr, 0.5) : lin(cen, simplex[n], 0.5), fc = f(xc);
+      if (fc <= (outside ? fr : fs[n])) { simplex[n] = xc; fs[n] = fc; }
+      else { for (let i = 1; i <= n; i++) { simplex[i] = lin(simplex[0], simplex[i], 0.5); fs[i] = f(simplex[i]); } }
+    }
+    const b = fs.indexOf(Math.min(...fs)); [st.R, st.t] = pose(simplex[b]);
+    bar.style.width = `${Math.min(100, 100 * fev / MAXFEV)}%`; info.textContent = `${fev} tries, J ${J0.toFixed(2)} → ${Math.min(...fs).toFixed(2)}`;
+    redraw(); await frame();
+  }
+  const b = fs.indexOf(Math.min(...fs)); [st.R, st.t] = pose(simplex[b]);
+  bar.style.width = "100%"; info.textContent = `${fev} tries, J ${J0.toFixed(2)} → ${fs[b].toFixed(2)}`;
+  setBusy(null); redraw();
+};
+
+/* ---------- start ---------- */
+const sel = document.getElementById("sceneSel");
+const groups = {};
+DATA.scenes.forEach((s, i) => {
+  const o = document.createElement("option"); o.value = i; o.textContent = s.title;
+  if (!s.patient) { sel.appendChild(o); return; }
+  if (!groups[s.patient]) { groups[s.patient] = document.createElement("optgroup"); groups[s.patient].label = s.patient.replace("Patient", "Patient "); sel.appendChild(groups[s.patient]); }
+  groups[s.patient].appendChild(o);
+});
+new ResizeObserver(resize).observe(stage);
+setTool("rotate"); legend();
+const r0 = stage.getBoundingClientRect(); renderer.setSize(r0.width, r0.height, false);
+loadScene(0).then(resize);
+window.__pg = { get st() { return st; }, evaluate, sizeCentreOf };   // for checks from the console
+</script>
+</body>
+</html>

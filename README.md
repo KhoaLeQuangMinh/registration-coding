@@ -73,6 +73,11 @@ All modalities are standardized to **~2.0 mm** point spacing for consistent geom
 ![Real PLY](assets/preprocessing_real.png)
 *Figure 6: Real PLY Before vs After*
 
+## 4. Pipeline Overview (planned)
+
+![Pipeline Overview](assets/pipeline_overview.svg)
+*Figure 7: Planned registration pipeline, from inputs to predicted pose, scale and deformation*
+
 
 
 

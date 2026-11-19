@@ -149,6 +149,10 @@ def main():
     ap.add_argument("--factor", type=float, default=None, help="fixed scale for B (default: recipe)")
     ap.add_argument("--limit", type=int, default=None, help="first N test views only (smoke test)")
     ap.add_argument("--seed", type=int, default=0)
+    ap.add_argument("--ct-rot-z", type=float, default=0.0,
+                    help="rotate the CT about its z axis by this many degrees before registration (frame test)")
+    ap.add_argument("--ct-shift", type=float, nargs=3, default=(0.0, 0.0, 0.0),
+                    help="then shift the CT by this vector, metres (frame test)")
     ap.add_argument("--out", default="benchmark/selfp2ir_out")
     args = ap.parse_args()
 
@@ -167,6 +171,11 @@ def main():
     o3d.utility.random.seed(args.seed)
 
     tag = "A" if args.condition == "A" else ("B_recipe" if args.factor is None else f"B_x{args.factor:.2f}")
+    a = np.deg2rad(args.ct_rot_z)
+    G = np.array([[np.cos(a), -np.sin(a), 0], [np.sin(a), np.cos(a), 0], [0, 0, 1]], np.float32)
+    d = np.array(args.ct_shift, np.float32)
+    if args.ct_rot_z or d.any():
+        tag += f"_ctrot{args.ct_rot_z:g}_ctshift{'_'.join(f'{v:g}' for v in d)}"
     os.makedirs(args.out, exist_ok=True)
     out_path = os.path.join(args.out, f"predictions_{tag}.json")
     records, rejected, limits = [], [], None
@@ -219,6 +228,10 @@ def main():
             rejected.append((patient, view))
             continue
 
+        if args.ct_rot_z or d.any():  # move the CT; the true pose follows so that it still maps CT -> camera
+            item["preope_pcd_src"] = item["preope_pcd_src"] @ G.T + d
+            item["pose_R"] = item["pose_R"] @ G.T
+            item["pose_t"] = item["pose_t"] - item["pose_R"] @ d.reshape(3, 1)
         scale = 1.0
         if args.condition == "B":
             if args.factor is None:

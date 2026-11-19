@@ -1,6 +1,7 @@
 import os
 import open3d as o3d
 import cv2
+import yaml
 import numpy as np
 
 # ==============================================================================
@@ -9,9 +10,14 @@ import numpy as np
 OBJ_PATH   = "dataset/liver-registration/01/model/reconstructed_mesh_world_m.obj"
 PCD_DIR    = "dataset/liver-registration/01/real/liverPcds"
 LABEL_DIR  = "dataset/liver-registration/01/real/labels"
+CAMK_PATH  = "dataset/liver-registration/01/real/CAM_K.yml"
 
-# Total 22 real clinical frames (frame_1 to frame_22)
-TOTAL_FRAMES = 22
+with open(CAMK_PATH) as f:
+    K = np.array(yaml.safe_load(f)["00000"][0]["cam_K"]).reshape(3, 3)
+
+# Real clinical frames are numbered frame_1 to frame_N, so N = number of PLY files
+# (22 for patient 01, 25 for 06, 13 for 10, 24 for 11)
+TOTAL_FRAMES = len([f for f in os.listdir(PCD_DIR) if f.endswith(".ply")])
 current_idx = 1  # 1-based indexing to match dataset naming
 
 # In-memory cache for smooth frame navigation
@@ -26,7 +32,8 @@ def load_real_pcd(frame_num: int) -> o3d.geometry.PointCloud:
     """
     Loads the real intraoperative 3D point cloud for the given frame number:
       - Reads the 1080p raster point cloud (frame_{frame_num}_json.ply).
-      - Filters out invalid/background points where Z <= 0.
+      - Filters out background points using the 2D label mask (label.png > 0).
+      - Rebuilds the points in the camera frame with the calibrated principal point.
       - Keeps the ~1 million valid liver surface points with their authentic
         endoscopic RGB colors.
     """
@@ -36,11 +43,25 @@ def load_real_pcd(frame_num: int) -> o3d.geometry.PointCloud:
     ply_path = os.path.join(PCD_DIR, f"frame_{frame_num}_json.ply")
     pcd_raw = o3d.io.read_point_cloud(ply_path)
 
-    pts = np.asarray(pcd_raw.points)
-    colors = np.asarray(pcd_raw.colors)
+    pts = np.asarray(pcd_raw.points).reshape(1080, 1920, 3)
+    colors = np.asarray(pcd_raw.colors).reshape(-1, 3)
 
-    # Filter out invalid background points (Z <= 0)
-    valid_mask = pts[:, 2] > 0
+    # Filter out background points with the label mask. Background pixels all sit
+    # on one point (the camera centre, Z ~ -115), and liver points close to the
+    # camera can have Z < 0, so a Z > 0 test is not safe.
+    label_path = os.path.join(LABEL_DIR, f"frame_{frame_num}_json", "label.png")
+    mask = cv2.imread(label_path).sum(axis=-1) > 0
+
+    # Rebuild with the calibrated principal point. The PLY was back-projected with the
+    # image centre (960, 540) instead of cx, cy from CAM_K.yml, then shifted. Background
+    # pixels have depth 0, so subtracting their Z recovers the depth exactly.
+    depth = pts[..., 2] - pts[~mask][0][2]
+    v, u = np.mgrid[0:1080, 0:1920]
+    pts = np.stack([(u - K[0, 2]) * depth / K[0, 0],
+                    (v - K[1, 2]) * depth / K[1, 1],
+                    depth], axis=-1).reshape(-1, 3)  # OpenCV camera frame, mm
+
+    valid_mask = mask.reshape(-1)
     valid_pts = pts[valid_mask]
     valid_colors = colors[valid_mask]
 

@@ -1,0 +1,246 @@
+<!doctype html>
+<html lang="en">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1, viewport-fit=cover">
+<title>Generator Preview</title>
+<link rel="stylesheet" href="https://fonts.googleapis.com/css2?family=IBM+Plex+Mono:wght@400;500&family=IBM+Plex+Sans:wght@400;500;600&family=IBM+Plex+Sans+Condensed:wght@600&display=swap">
+<style>
+/* Layout: comparison table, then a 3D viewer beside the selected example, then three galleries (dataset / generator / real). */
+:root {
+  --bg: #eef1f3; --panel: #ffffff; --ink: #142029; --muted: #5a6873; --line: #d6dde2; --soft: #f5f7f8;
+  --accent: #0d7480; --accent-ink: #ffffff; --stage: #0a0e11; --ds: #4c8dff; --gen: #f28c1b;
+  --f-ui: "IBM Plex Sans", system-ui, -apple-system, "Segoe UI", sans-serif;
+  --f-head: "IBM Plex Sans Condensed", "IBM Plex Sans", system-ui, sans-serif;
+  --f-num: "IBM Plex Mono", ui-monospace, Menlo, monospace; color-scheme: light;
+}
+@media (prefers-color-scheme: dark) { :root:not([data-theme="light"]) {
+  --bg: #0e1418; --panel: #151d22; --ink: #e3e9ed; --muted: #92a1ac; --line: #26323a; --soft: #1a242a; --accent: #36b3c2; --accent-ink: #061215; color-scheme: dark; } }
+:root[data-theme="dark"] { --bg: #0e1418; --panel: #151d22; --ink: #e3e9ed; --muted: #92a1ac; --line: #26323a; --soft: #1a242a; --accent: #36b3c2; --accent-ink: #061215; color-scheme: dark; }
+* { box-sizing: border-box; }
+[hidden] { display: none !important; }
+html, body { margin: 0; }
+body { background: var(--bg); color: var(--ink); font: 14px/1.5 var(--f-ui);
+  padding-left: max(16px, env(safe-area-inset-left, 0px)); padding-right: max(16px, env(safe-area-inset-right, 0px)); padding-block: 16px 40px; }
+h1, h2, h3 { font-family: var(--f-head); font-weight: 600; margin: 0; text-wrap: balance; }
+h1 { font-size: 22px; } h2 { font-size: 17px; } h3 { font-size: 14px; }
+.wrap { max-width: 1480px; margin: 0 auto; display: grid; gap: 16px; }
+.card { background: var(--panel); border: 1px solid var(--line); border-radius: 10px; padding: 12px 14px; min-width: 0; }
+.sub { color: var(--muted); max-width: 80ch; }
+.tablewrap { overflow-x: auto; }
+table { border-collapse: collapse; width: 100%; font-size: 13px; }
+th, td { text-align: left; padding: 6px 10px; border-bottom: 1px solid var(--line); vertical-align: top; }
+td.n { font-family: var(--f-num); font-variant-numeric: tabular-nums; white-space: nowrap; }
+th { color: var(--muted); font-weight: 600; font-size: 12px; }
+.chip { display: inline-block; width: 10px; height: 10px; border-radius: 50%; margin-right: 6px; vertical-align: middle; }
+.viewer { display: grid; grid-template-columns: minmax(0, 1.4fr) minmax(0, 1fr); gap: 14px; }
+@media (max-width: 1000px) { .viewer { grid-template-columns: minmax(0, 1fr); } }
+.stage { position: relative; width: 100%; aspect-ratio: 16 / 10; background: var(--stage); border-radius: 8px; overflow: hidden; touch-action: none; cursor: grab; }
+.stage canvas { position: absolute; inset: 0; width: 100%; height: 100%; }
+.row { display: flex; flex-wrap: wrap; gap: 8px; align-items: center; }
+.seg { display: inline-flex; border: 1px solid var(--line); border-radius: 8px; overflow: hidden; }
+.seg button { border: 0; border-right: 1px solid var(--line); background: var(--soft); color: var(--ink); padding: 6px 10px; font: 500 13px var(--f-ui); cursor: pointer; }
+.seg button:last-child { border-right: 0; }
+.seg button[aria-pressed="true"] { background: var(--accent); color: var(--accent-ink); }
+button:focus-visible { outline: 2px solid var(--accent); outline-offset: 2px; }
+.hint { color: var(--muted); font-size: 12.5px; }
+.legend { display: flex; flex-wrap: wrap; gap: 4px 14px; font-size: 12.5px; color: var(--muted); }
+.sw { display: inline-block; width: 12px; height: 12px; border-radius: 3px; vertical-align: middle; margin-right: 5px; }
+.gallery { display: grid; grid-template-columns: repeat(auto-fill, minmax(min(100%, 430px), 1fr)); gap: 12px; }
+.ex { border: 1px solid var(--line); border-radius: 10px; background: var(--panel); padding: 10px; display: grid; gap: 6px; cursor: pointer; text-align: left; color: var(--ink); font: inherit; }
+.ex[aria-pressed="true"] { outline: 2px solid var(--accent); }
+.ex.nocam { cursor: default; }
+.imgs { display: grid; grid-template-columns: repeat(3, minmax(0, 1fr)); gap: 4px; }
+.imgs figure { margin: 0; display: grid; gap: 2px; }
+.imgs img { width: 100%; max-width: 100%; aspect-ratio: 16 / 9; border-radius: 4px; display: block; image-rendering: pixelated; }
+.imgs figcaption { font-size: 11px; color: var(--muted); line-height: 1.2; }
+.facts { font: 11.5px/1.45 var(--f-num); color: var(--muted); }
+.section-h { display: grid; gap: 4px; }
+.kv { display: grid; grid-template-columns: auto 1fr; gap: 3px 12px; font-size: 13px; }
+.kv dt { color: var(--muted); } .kv dd { margin: 0; font-family: var(--f-num); }
+.big3 { display: grid; gap: 6px; grid-template-columns: repeat(2, minmax(0, 1fr)); }
+.big3 img { width: 100%; max-width: 100%; border-radius: 6px; image-rendering: pixelated; }
+</style>
+</head>
+<body>
+<div class="wrap">
+  <header class="section-h">
+    <h1>Generator Preview</h1>
+    <div class="sub">What our prototype generator makes, next to the P2I-LReg synthetic views the published models trained on, and real P2I-LReg photos. Judge whether the generated views look like something a laparoscope could see. Patient data stays on this computer.</div>
+  </header>
+
+  <section class="card" aria-label="Comparison">
+    <h2>The two training sets in numbers</h2>
+    <p class="hint">Middle 90 % of each set (5th–95th percentile). Dataset and generator: patient 06 (150 dataset views, 250 generated). Real: P2I-LReg calibrated lenses (4 patients) and the 6 photos below.</p>
+    <div class="tablewrap"><table id="tbl"></table></div>
+  </section>
+
+  <section class="card viewer" aria-label="3D viewer">
+    <div style="display:grid;gap:8px;min-width:0;align-content:start">
+      <div class="row">
+        <div class="seg" id="modes"><button data-m="cams" aria-pressed="true">Camera positions (patient 06)</button><button data-m="ex">Selected example</button></div>
+        <span class="hint">Drag to orbit · Shift+drag to pan · scroll to zoom</span>
+      </div>
+      <div class="stage" id="stage"><canvas id="gl"></canvas></div>
+      <div class="legend" id="legend3"></div>
+    </div>
+    <div style="display:grid;gap:10px;align-content:start;min-width:0">
+      <h2 id="selTitle">Click an example below</h2>
+      <div class="big3" id="selImgs"></div>
+      <dl class="kv" id="selFacts"></dl>
+    </div>
+  </section>
+
+  <section class="card" aria-label="Colour key">
+    <h3>Colour key for “what the model gets”</h3>
+    <div class="legend" id="key"></div>
+  </section>
+
+  <section class="section-h"><h2>Dataset synthetic (P2I-LReg)</h2><div class="sub">What Self-P2IR and Vis2Reg trained on: one wide camera per patient, front views, labelled tools, perfect depth, no bending.</div></section>
+  <div class="gallery" id="g-dataset"></div>
+  <section class="section-h"><h2>Our generator (prototype)</h2><div class="sub">Varied lenses and viewpoints, bending, tools, scope border, fat and ligament covering the liver, damaged depth with its scale thrown away. Every number is a placeholder range until it has a published source.</div></section>
+  <div class="gallery" id="g-generator"></div>
+  <section class="section-h"><h2>Real photos (P2I-LReg, for reference)</h2><div class="sub">No true camera exists for these, so there is no 3D view. Depth is Depth Anything's, from the released clouds.</div></section>
+  <div class="gallery" id="g-real"></div>
+</div>
+
+<script src="https://cdnjs.cloudflare.com/ajax/libs/three.js/r128/three.min.js"></script>
+<script>
+"use strict";
+const DATA = /*__DATA__*/null;
+const decode = (b, T) => { const s = atob(b), u = new Uint8Array(s.length); for (let i = 0; i < s.length; i++) u[i] = s.charCodeAt(i); return new T(u.buffer); };
+// body frame (x left, y back, z head) -> display (x, head up, front toward the viewer)
+const D3 = p => new THREE.Vector3(p[0], p[2], -p[1]);
+
+/* ---------- table ---------- */
+const T = DATA.table, rows = [
+  ["Lens width (horizontal field of view, °)", "hfov"], ["Camera distance to the liver centre (mm)", "dist"],
+  ["Camera angle from the patient's front (°)", "front"], ["Visible liver (fraction of the picture)", "vis"],
+  ["Views with a tool", "tools"], ["Outline edges: real / covered / border (%)", "edges"],
+  ["Bend: mean tissue movement (mm)", "bend"], ["Depth damage (mean tilt error, °)", "depth"]];
+document.getElementById("tbl").innerHTML = `<tr><th></th><th><i class="chip" style="background:var(--ds)"></i>Dataset synthetic</th><th><i class="chip" style="background:var(--gen)"></i>Our generator</th><th>Real photos</th></tr>`
+  + rows.map(([l, k]) => `<tr><td>${l}</td><td class="n">${T.dataset[k] ?? "–"}</td><td class="n">${T.generator[k] ?? "–"}</td><td class="n">${T.real[k] ?? "unknown"}</td></tr>`).join("");
+
+/* ---------- colour key ---------- */
+const C = DATA.colours, keyItems = [["liver", "visible liver (the mask)"], ["hidden", "liver hidden under something (truth only; the model does not get this)"],
+  ["tool", "tool"], ["fat", "fat"], ["ligament", "ligament band"], ["scope", "outside the scope"], ["real", "edge: the liver really ends"],
+  ["covered", "edge: liver goes on underneath"], ["border", "edge: image or scope border"]];
+document.getElementById("key").innerHTML = keyItems.map(([k, t]) => `<span><i class="sw" style="background:${C[k]};border:1px solid var(--line)"></i>${t}</span>`).join("");
+
+/* ---------- galleries ---------- */
+const CAPS = { dataset: ["what the model gets", "depth given to the model (perfect)", "true depth"],
+  generator: ["what the model gets", "depth given to the model (damaged, no scale)", "true depth"],
+  real: ["photo + mask outline", "Depth Anything depth", "the mask"] };
+const fmt = (k, v) => {
+  const m = { hfov_deg: ["lens", v => `${v.toFixed(0)}°`], centre_dist_mm: ["distance", v => `${v.toFixed(0)} mm`], front_angle_deg: ["from front", v => `${v.toFixed(0)}°`],
+    roll_deg: ["roll", v => `${v.toFixed(0)}°`], bend_mean_mm: ["bend", v => `${v.toFixed(1)} mm`], depth_kind: ["depth damage", v => v], depth_tilt_err_deg: ["depth error", v => `${v}°`],
+    visible_frac: ["visible", v => `${(100 * v).toFixed(0)} %`], tools: ["tools", v => v], fat_on_liver_frac: ["fat on liver", v => `${(100 * v).toFixed(0)} %`],
+    scope_radius_frac: ["scope radius", v => `${(100 * v).toFixed(0)} % of width`], ligament: ["ligament", () => "yes"] }[k];
+  return m ? `${m[0]} ${m[1](v)}` : null;
+};
+const allCards = [];
+for (const grp of ["dataset", "generator", "real"]) {
+  const box = document.getElementById(`g-${grp}`);
+  DATA.cards[grp].forEach(c => {
+    const b = document.createElement(grp === "real" ? "div" : "button");
+    b.className = "ex" + (grp === "real" ? " nocam" : "");
+    const facts = Object.entries(c.info).map(([k, v]) => fmt(k, v)).filter(Boolean).join(" · ");
+    b.innerHTML = `<h3>${c.title}</h3><div class="imgs">${c.imgs.map((s, i) => `<figure><img src="${s}" alt="${CAPS[grp][i]}"><figcaption>${CAPS[grp][i]}</figcaption></figure>`).join("")}</div><div class="facts">${facts}</div>`;
+    if (grp !== "real") { b.setAttribute("aria-pressed", "false"); b.onclick = () => select(c, b, grp); }
+    box.appendChild(b); allCards.push(b);
+  });
+}
+
+/* ---------- 3D ---------- */
+const stage = document.getElementById("stage"), canvas = document.getElementById("gl");
+const renderer = new THREE.WebGLRenderer({ canvas, antialias: true }); renderer.setClearColor(0x0a0e11, 1);
+const scene = new THREE.Scene(), cam = new THREE.PerspectiveCamera(40, 1.6, 1, 10000);
+scene.add(new THREE.AmbientLight(0xffffff, 0.55)); const sun = new THREE.DirectionalLight(0xffffff, 0.7); sun.position.set(300, 500, 400); scene.add(sun);
+const meshCache = {};
+function liverGeom(p, positions) {
+  const m = DATA.meshes[p], g = new THREE.BufferGeometry();
+  g.setAttribute("position", new THREE.BufferAttribute(positions || decode(m.v, Float32Array), 3));
+  g.setIndex(new THREE.BufferAttribute(decode(m.f, Uint32Array), 1)); g.computeVertexNormals();
+  return g;
+}
+const body = new THREE.Group(); body.matrixAutoUpdate = false;
+body.matrix.set(1, 0, 0, 0, 0, 0, 1, 0, 0, -1, 0, 0, 0, 0, 0, 1);           // (x, y, z) -> (x, z, -y)
+scene.add(body);
+let content = null, mode = "cams", current = null;
+const orbit = { target: new THREE.Vector3(), r: 700, yaw: 0.6, pitch: 0.35 };
+function clear() { if (content) { body.remove(content); content.traverse(o => { if (o.geometry) o.geometry.dispose(); }); } content = new THREE.Group(); body.add(content); }
+function addLiver(p, positions, opts) {
+  const mat = new THREE.MeshLambertMaterial({ color: opts.color, transparent: opts.opacity < 1, opacity: opts.opacity, side: THREE.DoubleSide, depthWrite: opts.opacity >= 1, wireframe: !!opts.wire });
+  const mesh = new THREE.Mesh(liverGeom(p, positions), mat); content.add(mesh); return mesh;
+}
+function points(arr, color, size) {
+  const g = new THREE.BufferGeometry(); g.setAttribute("position", new THREE.Float32BufferAttribute(arr.flat(), 3));
+  content.add(new THREE.Points(g, new THREE.PointsMaterial({ color, size, sizeAttenuation: false })));
+}
+function lines(pairs, color, opacity = 1) {
+  const g = new THREE.BufferGeometry(); g.setAttribute("position", new THREE.Float32BufferAttribute(pairs.flat(2), 3));
+  content.add(new THREE.LineSegments(g, new THREE.LineBasicMaterial({ color, transparent: opacity < 1, opacity })));
+}
+function showCams() {
+  clear(); const p = DATA.cams.patient;
+  addLiver(p, null, { color: 0xc58aa8, opacity: 0.9 });
+  const ds = DATA.cams.dataset, gn = DATA.cams.generator;
+  points(ds.map(r => r.slice(0, 3)), 0x4c8dff, 4); points(gn.map(r => r.slice(0, 3)), 0xf28c1b, 5);
+  const seg = (r, L) => [r.slice(0, 3), [r[0] + L * r[3], r[1] + L * r[4], r[2] + L * r[5]]];
+  lines(ds.filter((_, i) => i % 4 === 0).map(r => seg(r, 30)), 0x4c8dff, 0.5); lines(gn.map(r => seg(r, 30)), 0xf28c1b, 0.7);
+  const c = DATA.meshes[p].centre; orbit.target.copy(D3(c)); orbit.r = 900;
+  document.getElementById("legend3").innerHTML = `<span><i class="sw" style="background:var(--ds)"></i>dataset synthetic cameras (${ds.length})</span><span><i class="sw" style="background:var(--gen)"></i>our generator's cameras (${gn.length})</span><span>short lines = where each camera looks · liver: patient 06, front toward you, head up</span>`;
+  draw();
+}
+function showExample(c) {
+  clear(); const p = c.patient;
+  if (c.bent) { addLiver(p, null, { color: 0x9aa7b2, opacity: 0.12, wire: true }); addLiver(p, decode(c.bent, Float32Array), { color: 0xd98cb0, opacity: 0.85 }); }
+  else addLiver(p, null, { color: 0xd98cb0, opacity: 0.85 });
+  const f = c.frustum, Cc = f.C, K = f.corners;
+  lines([[Cc, K[0]], [Cc, K[1]], [Cc, K[2]], [Cc, K[3]], [K[0], K[1]], [K[1], K[2]], [K[2], K[3]], [K[3], K[0]]], 0xdfe7ec);
+  const q = new THREE.BufferGeometry();
+  q.setAttribute("position", new THREE.Float32BufferAttribute(K.flat(), 3));
+  q.setAttribute("uv", new THREE.Float32BufferAttribute([0, 1, 1, 1, 1, 0, 0, 0], 2)); q.setIndex([0, 1, 2, 0, 2, 3]);
+  const tex = new THREE.TextureLoader().load(c.imgs[0], draw); tex.magFilter = THREE.NearestFilter;
+  content.add(new THREE.Mesh(q, new THREE.MeshBasicMaterial({ map: tex, side: THREE.DoubleSide, transparent: true, opacity: 0.9 })));
+  points([Cc], 0xffffff, 9);
+  if (c.inside) points(c.inside, 0xff3b6b, 5);
+  const mid = DATA.meshes[p].centre; orbit.target.copy(D3(mid)); orbit.r = 2.4 * Math.hypot(Cc[0] - mid[0], Cc[1] - mid[1], Cc[2] - mid[2]);
+  document.getElementById("legend3").innerHTML = `<span><i class="sw" style="background:#d98cb0"></i>${c.bent ? "bent liver" : "liver"}</span>` + (c.bent ? `<span><i class="sw" style="background:#9aa7b2"></i>unbent CT (wireframe)</span>` : "")
+    + `<span><i class="sw" style="background:#fff"></i>camera; lines = what it sees; picture = what the model gets</span>` + (c.inside ? `<span><i class="sw" style="background:#ff3b6b"></i>virtual tumours (inside points)</span>` : "");
+  draw();
+}
+function select(c, b, grp) {
+  allCards.forEach(x => x.setAttribute && x.getAttribute("aria-pressed") !== null && x.setAttribute("aria-pressed", "false"));
+  b.setAttribute("aria-pressed", "true"); current = c; setMode("ex");
+  document.getElementById("selTitle").textContent = c.title;
+  document.getElementById("selImgs").innerHTML = c.imgs.map((s, i) => `<figure style="margin:0"><img src="${s}" alt=""><figcaption class="hint">${CAPS[grp][i]}</figcaption></figure>`).join("");
+  document.getElementById("selFacts").innerHTML = Object.entries(c.info).map(([k, v]) => `<dt>${k.replace(/_/g, " ")}</dt><dd>${typeof v === "number" ? (Math.abs(v) >= 10 ? v.toFixed(0) : v.toFixed(2)) : JSON.stringify(v)}</dd>`).join("");
+  stage.scrollIntoView({ behavior: "smooth", block: "nearest" });
+}
+function setMode(m) {
+  mode = m; document.querySelectorAll("#modes button").forEach(b => b.setAttribute("aria-pressed", b.dataset.m === m));
+  if (m === "cams") showCams(); else if (current) showExample(current); else showCams();
+}
+document.querySelectorAll("#modes button").forEach(b => b.onclick = () => setMode(b.dataset.m));
+function draw() {
+  const o = orbit, c = Math.cos(o.pitch);
+  cam.position.set(o.target.x + o.r * c * Math.sin(o.yaw), o.target.y + o.r * Math.sin(o.pitch), o.target.z + o.r * c * Math.cos(o.yaw));
+  cam.lookAt(o.target); renderer.render(scene, cam);
+}
+function resize() { const r = stage.getBoundingClientRect(); renderer.setPixelRatio(Math.min(devicePixelRatio || 1, 2)); renderer.setSize(r.width, r.height, false); cam.aspect = r.width / r.height; cam.updateProjectionMatrix(); draw(); }
+let drag = null;
+stage.addEventListener("pointerdown", e => { stage.setPointerCapture(e.pointerId); drag = { x: e.clientX, y: e.clientY, pan: e.shiftKey || e.button === 2 }; });
+stage.addEventListener("pointermove", e => {
+  if (!drag) return; const du = e.clientX - drag.x, dv = e.clientY - drag.y; drag.x = e.clientX; drag.y = e.clientY;
+  if (drag.pan) { const right = new THREE.Vector3().setFromMatrixColumn(cam.matrixWorld, 0), up = new THREE.Vector3().setFromMatrixColumn(cam.matrixWorld, 1), k = orbit.r * 0.0016; orbit.target.addScaledVector(right, -du * k).addScaledVector(up, dv * k); }
+  else { orbit.yaw -= du * 0.006; orbit.pitch = Math.max(-1.5, Math.min(1.5, orbit.pitch + dv * 0.006)); }
+  draw();
+});
+stage.addEventListener("pointerup", () => drag = null); stage.addEventListener("contextmenu", e => e.preventDefault());
+stage.addEventListener("wheel", e => { e.preventDefault(); orbit.r *= Math.exp(e.deltaY * 0.0012); draw(); }, { passive: false });
+new ResizeObserver(resize).observe(stage);
+showCams(); resize();
+</script>
+</body>
+</html>

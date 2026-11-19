@@ -1,0 +1,510 @@
+<!doctype html>
+<html lang="en">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1, viewport-fit=cover">
+<title>Liver Deformation Lab</title>
+<link rel="stylesheet" href="https://fonts.googleapis.com/css2?family=IBM+Plex+Mono:wght@400;500&family=IBM+Plex+Sans:wght@400;500;600&family=IBM+Plex+Sans+Condensed:wght@600&display=swap">
+<style>
+/* Layout: the surgeon's screen (left) and the whole organ (right), one control strip below, recordings at the end. */
+:root {
+  --bg: #eef1f3; --panel: #ffffff; --ink: #142029; --muted: #5a6873; --line: #d6dde2; --soft: #f5f7f8;
+  --accent: #0d7480; --accent-ink: #ffffff; --stage: #0a0e11; --grasp: #ff4f7b; --fix: #4c8dff; --ctrl: #e8eef2;
+  --f-ui: "IBM Plex Sans", system-ui, -apple-system, "Segoe UI", sans-serif;
+  --f-head: "IBM Plex Sans Condensed", "IBM Plex Sans", system-ui, sans-serif;
+  --f-num: "IBM Plex Mono", ui-monospace, Menlo, monospace; color-scheme: light;
+}
+@media (prefers-color-scheme: dark) { :root:not([data-theme="light"]) {
+  --bg: #0e1418; --panel: #151d22; --ink: #e3e9ed; --muted: #92a1ac; --line: #26323a; --soft: #1a242a; --accent: #36b3c2; --accent-ink: #061215; color-scheme: dark; } }
+:root[data-theme="dark"] { --bg: #0e1418; --panel: #151d22; --ink: #e3e9ed; --muted: #92a1ac; --line: #26323a; --soft: #1a242a; --accent: #36b3c2; --accent-ink: #061215; color-scheme: dark; }
+* { box-sizing: border-box; }
+[hidden] { display: none !important; }
+html, body { margin: 0; }
+body { background: var(--bg); color: var(--ink); font: 14px/1.5 var(--f-ui);
+  padding-left: max(16px, env(safe-area-inset-left, 0px)); padding-right: max(16px, env(safe-area-inset-right, 0px)); padding-block: 14px 32px; }
+h1 { font-family: var(--f-head); font-weight: 600; margin: 0; font-size: 22px; }
+.wrap { max-width: 1600px; margin: 0 auto; display: grid; gap: 12px; }
+.sub { color: var(--muted); max-width: 95ch; }
+.views { display: grid; grid-template-columns: minmax(0, 1fr) minmax(0, 1fr); gap: 12px; }
+@media (max-width: 1000px) { .views { grid-template-columns: minmax(0, 1fr); } }
+.card { background: var(--panel); border: 1px solid var(--line); border-radius: 10px; padding: 10px; display: grid; gap: 8px; min-width: 0; }
+.stage { position: relative; width: 100%; aspect-ratio: 16 / 9; max-width: 100%; border-radius: 8px; overflow: hidden; touch-action: none; user-select: none; }
+.stage canvas { position: absolute; inset: 0; width: 100%; height: 100%; display: block; }
+#lapStage { background: radial-gradient(ellipse at 50% 45%, #5a2a22 0%, #2a120f 55%, #0b0504 100%); cursor: crosshair; }
+#orgStage { background: var(--stage); cursor: grab; }
+.tag { position: absolute; left: 10px; top: 8px; color: #eef3f6; font: 12px var(--f-num); background: rgba(0,0,0,.5); padding: 2px 8px; border-radius: 6px; pointer-events: none; }
+.row { display: flex; flex-wrap: wrap; gap: 8px; align-items: center; }
+.seg { display: inline-flex; border: 1px solid var(--line); border-radius: 8px; overflow: hidden; }
+.seg button { border: 0; border-right: 1px solid var(--line); background: var(--soft); color: var(--ink); padding: 6px 12px; font: 500 13px var(--f-ui); cursor: pointer; }
+.seg button:last-child { border-right: 0; }
+.seg button[aria-pressed="true"] { background: var(--accent); color: var(--accent-ink); }
+button.btn { border: 1px solid var(--line); background: var(--soft); color: var(--ink); border-radius: 8px; padding: 6px 12px; font: 500 13px var(--f-ui); cursor: pointer; }
+button.btn.primary { background: var(--accent); color: var(--accent-ink); border-color: var(--accent); }
+button:focus-visible, select:focus-visible, input:focus-visible { outline: 2px solid var(--accent); outline-offset: 2px; }
+select { font: 13px var(--f-ui); padding: 5px 8px; border-radius: 8px; border: 1px solid var(--line); background: var(--soft); color: var(--ink); max-width: 100%; }
+.hint { color: var(--muted); font-size: 12.5px; }
+.controls { display: grid; grid-template-columns: repeat(auto-fit, minmax(min(100%, 280px), 1fr)); gap: 10px 18px; }
+.slider { display: grid; grid-template-columns: 1fr auto; gap: 2px 8px; font-size: 13px; }
+.slider input { grid-column: 1 / -1; accent-color: var(--accent); width: 100%; }
+.slider output { font: 12.5px var(--f-num); color: var(--muted); }
+.stats { display: flex; flex-wrap: wrap; gap: 6px 18px; font: 13px var(--f-num); }
+.stats b { font-weight: 500; }
+.legend { display: flex; flex-wrap: wrap; gap: 4px 14px; font-size: 12.5px; color: var(--muted); align-items: center; }
+.sw { display: inline-block; width: 12px; height: 12px; border-radius: 3px; vertical-align: middle; margin-right: 5px; }
+.ramp { display: inline-block; width: 110px; height: 10px; border-radius: 3px; vertical-align: middle; margin: 0 6px; background: linear-gradient(90deg, #440154, #3b528b, #21918c, #5ec962, #fde725); }
+.recs { display: grid; gap: 4px; font: 12.5px var(--f-num); max-height: 220px; overflow: auto; }
+.note { font-size: 12.5px; color: var(--muted); border-left: 3px solid var(--line); padding-left: 10px; max-width: 110ch; }
+.warn { color: #b8430f; }
+.compass { display: grid; grid-template-columns: repeat(3, 28px); grid-template-rows: repeat(3, 24px); gap: 3px; }
+.compass button { border: 1px solid var(--line); background: var(--soft); color: var(--ink); border-radius: 5px; font: 13px var(--f-ui); cursor: pointer; padding: 0; }
+.compass button[aria-pressed="true"] { background: var(--accent); color: var(--accent-ink); border-color: var(--accent); }
+.compass span { display: grid; place-items: center; font-size: 10px; color: var(--muted); }
+.slider.mini { width: 150px; }
+</style>
+</head>
+<body>
+<div class="wrap">
+  <header style="display:grid;gap:4px">
+    <h1>Liver Deformation Lab</h1>
+    <div class="sub">Work on the left like the surgeon: <b>Press</b> dents the surface, <b>Grasp</b> clips a point so you can pull it or lift it. The right shows the whole liver deforming the same way. Physics: LIBR, a linear-elastic finite-element model of this liver; every tool target is met with the least strain energy, so the organ always deforms as one elastic body.</div>
+  </header>
+
+  <div class="views">
+    <section class="card" aria-label="Laparoscope view">
+      <div class="row">
+        <div class="seg" id="tools" role="group" aria-label="Tool"></div>
+        <button class="btn" id="releaseLast">Release last</button>
+        <button class="btn" id="releaseAll">Release all</button>
+      </div>
+      <div class="row" style="align-items:center;gap:14px">
+        <span class="hint">Enters from</span><div class="compass" id="ports" role="group" aria-label="Which side the tool enters from"></div>
+        <div class="slider mini"><label for="roll">Roll</label><output id="rollOut"></output><input type="range" id="roll" min="-180" max="180" step="5" value="0"></div>
+        <div class="slider mini" id="depthWrap" hidden><label for="depth">Push depth</label><output id="depthOut"></output><input type="range" id="depth" min="0" max="25" step="0.5" value="5"></div>
+        <div class="slider mini" id="liftWrap" hidden><label for="lift">Lift (+ toward camera)</label><output id="liftOut"></output><input type="range" id="lift" min="-20" max="40" step="0.5" value="0"></div>
+        <div class="slider mini" id="jawWrap"><label for="jaw">Jaws open</label><output id="jawOut"></output><input type="range" id="jaw" min="0" max="60" step="2" value="10"></div>
+        <label class="hint" for="camSel">Camera</label><select id="camSel"></select>
+        <label class="hint"><input type="checkbox" id="xray"> show tumour</label>
+        <label class="hint"><input type="checkbox" id="showTools" checked> show tools</label>
+      </div>
+      <div class="stage" id="lapStage"><canvas id="lap"></canvas><canvas id="lapOv"></canvas><div class="tag">Laparoscope view</div></div>
+      <div class="hint" id="toolHint"></div>
+      <div class="hint" id="selInfo"></div>
+    </section>
+    <section class="card" aria-label="Whole liver">
+      <div class="row">
+        <label class="hint"><input type="checkbox" id="ghost" checked> CT shape before (wireframe)</label>
+        <label class="hint"><input type="checkbox" id="showCtrl"> LIBR control points</label>
+        <button class="btn" id="resetView">Reset view</button>
+      </div>
+      <div class="stage" id="orgStage"><canvas id="org"></canvas><div class="tag">Whole liver · front toward you, head up</div></div>
+      <div class="legend"><span>tissue moved: 0<i class="ramp"></i>30 mm+</span><span><i class="sw" style="background:var(--fix)"></i>attached (held in place)</span><span><i class="sw" style="background:#3a3f44"></i>tool</span><span><i class="sw" style="background:#46e08a"></i>virtual tumour</span><span><i class="sw" style="background:var(--ctrl)"></i>laparoscope's view / control points</span></div>
+    </section>
+  </div>
+
+  <section class="card" aria-label="Conditions">
+    <div class="controls">
+      <div class="slider"><label for="gas">Gas (pneumoperitoneum)</label><output id="gasOut"></output><input type="range" id="gas" min="0" max="1" step="0.01" value="0"></div>
+      <div class="slider"><label for="tiltHead">Head-up tilt (reverse Trendelenburg)</label><output id="tiltHeadOut"></output><input type="range" id="tiltHead" min="-20" max="40" step="1" value="0"></div>
+      <div class="slider"><label for="tiltSide">Side tilt (− right side down, + left side down)</label><output id="tiltSideOut"></output><input type="range" id="tiltSide" min="-30" max="30" step="1" value="0"></div>
+      <div class="slider"><label for="stiff">Tissue stiffness (affects gas and gravity)</label><output id="stiffOut"></output><input type="range" id="stiff" min="0.5" max="2" step="0.05" value="1"></div>
+    </div>
+    <div class="stats" id="stats"></div>
+    <div class="note">LIBR is linear elasticity: right for dents, gas and sag. A press = a local dent (contact solution for the tool tip pressing an elastic body) plus organ-scale movement (LIBR), split by their stiffness. A big lift that should <i>rotate</i> a lobe about its attachment will instead stretch it; the page warns when the surface is stretched beyond ~20 %. Gas and gravity sizes are placeholders (gas 100 % → 10 mm, head-up 30° → 20 mm) until checked against measured deformations. Tool targets do not depend on stiffness: when a tool forces a point to move, an elastic body's shape does not depend on how stiff it is, only the force does.</div>
+  </section>
+
+  <section class="card" aria-label="Recordings">
+    <div class="row">
+      <button class="btn primary" id="record">Record this state</button>
+      <button class="btn" id="download">Download recordings</button>
+      <button class="btn" id="delLast">Delete last recording</button>
+      <button class="btn" id="reset">Reset liver</button>
+      <span class="hint" id="recInfo">No recordings yet.</span>
+    </div>
+    <div class="recs" id="recList"></div>
+  </section>
+</div>
+
+<script src="https://cdnjs.cloudflare.com/ajax/libs/three.js/r128/three.min.js"></script>
+<script>
+"use strict";
+const DATA = /*__DATA__*/null;
+const dec = (b, T) => { const s = atob(b), u = new Uint8Array(s.length); for (let i = 0; i < s.length; i++) u[i] = s.charCodeAt(i); return new T(u.buffer); };
+
+/* ================= the LIBR basis ================= */
+const NS = DATA.surf.nv, NTV = DATA.tumour.nv, NA = NS + NTV, NCASE = DATA.ncase, NC = DATA.nctrl * 3;
+const restS = dec(DATA.surf.v, Float32Array), restT = dec(DATA.tumour.v, Float32Array);
+const qs = dec(DATA.qscale, Float32Array), Uq = dec(DATA.U, Int16Array), U = new Float32Array(Uq.length);
+for (let r = 0; r < NA * 3; r++) for (let c = 0; c < NCASE; c++) U[r * NCASE + c] = Uq[r * NCASE + c] * qs[c];
+const E = dec(DATA.E, Float64Array);                      // NC x NC strain energy of the control responses
+const GX = NC, GAS = NC + 3;                              // case indices: gravity x, y, z = NC..NC+2, gas = NC+3
+const P = { gas: 0, tiltHead: 0, tiltSide: 0, stiff: 1 };
+let alpha = new Float64Array(NC);
+const disp = new Float32Array(NA * 3);                    // displacement of every surface + tumour point (mm)
+function background(cf) {                                 // gas + gravity case weights
+  const th = P.tiltHead * Math.PI / 180, ph = P.tiltSide * Math.PI / 180, g = 9.81, k = DATA.grav_scale / P.stiff;
+  const d = [Math.sin(ph) * Math.cos(th), Math.cos(ph) * Math.cos(th), -Math.sin(th)];
+  cf[GX] = g * d[0] * k; cf[GX + 1] = g * (d[1] - 1) * k; cf[GX + 2] = g * d[2] * k;   // change from the CT (lying flat)
+  cf[GAS] = P.gas * DATA.gas_scale / P.stiff;
+}
+function evalRow(r, cf) { let s = 0; const o = r * NCASE; for (let c = 0; c < NCASE; c++) s += U[o + c] * cf[c]; return s; }
+function bgAt(v) { const cf = new Float64Array(NCASE); background(cf); return [0, 1, 2].map(d => evalRow(v * 3 + d, cf)); }
+
+/* tools -> LIBR fit: rows A alpha = b, minimise |A alpha - b|^2 + lam * alpha^T E alpha */
+const handles = [];                                       // {tool, v, start [mm], D [mm], dir}
+function solve(A, b, n) {                                 // Gaussian elimination with partial pivoting (n x n)
+  for (let k = 0; k < n; k++) {
+    let p = k; for (let i = k + 1; i < n; i++) if (Math.abs(A[i*n+k]) > Math.abs(A[p*n+k])) p = i;
+    if (p !== k) { for (let j = 0; j < n; j++) { const t = A[k*n+j]; A[k*n+j] = A[p*n+j]; A[p*n+j] = t; } const t = b[k]; b[k] = b[p]; b[p] = t; }
+    const piv = A[k*n+k] || 1e-30;
+    for (let i = k + 1; i < n; i++) { const f = A[i*n+k] / piv; if (!f) continue; for (let j = k; j < n; j++) A[i*n+j] -= f * A[k*n+j]; b[i] -= f * b[k]; }
+  }
+  const x = new Float64Array(n);
+  for (let i = n - 1; i >= 0; i--) { let s = b[i]; for (let j = i + 1; j < n; j++) s -= A[i*n+j] * x[j]; x[i] = s / (A[i*n+i] || 1e-30); }
+  return x;
+}
+function fit() {
+  if (!handles.length) { alpha = new Float64Array(NC); return; }
+  const rows = [], rhs = [];
+  for (const h of handles) {
+    const bg = bgAt(h.v), target = h.start.map((s, k) => s + h.D[k] - (h.lift || 0) * h.view[k]);
+    if (h.tool === "grasp") for (let d = 0; d < 3; d++) { const r = new Float64Array(NC); for (let c = 0; c < NC; c++) r[c] = U[(h.v * 3 + d) * NCASE + c]; rows.push(r); rhs.push(target[d] - bg[d]); }
+    else {                                                // press: only along the shaft (the tissue may slide under the tip)
+      const frac = pressSplit(h), r = new Float64Array(NC); for (let c = 0; c < NC; c++) for (let d = 0; d < 3; d++) r[c] += h.dir[d] * U[(h.v * 3 + d) * NCASE + c];
+      rows.push(r); rhs.push(h.dir.reduce((s, dd, d) => s + dd * (h.start[d] - bg[d]), 0) + h.press * frac);
+    }
+  }
+  const M = new Float64Array(NC * NC), y = new Float64Array(NC);
+  let trA = 0, trE = 0;
+  for (let i = 0; i < NC; i++) { for (const r of rows) trA += r[i] * r[i]; trE += E[i*NC+i]; }
+  const lam = 1e-4 * trA / trE;
+  for (let i = 0; i < NC; i++) {
+    for (let j = 0; j < NC; j++) { let s = 0; for (const r of rows) s += r[i] * r[j]; M[i*NC+j] = s + lam * E[i*NC+j]; }
+    let s = 0; rows.forEach((r, k) => s += r[i] * rhs[k]); y[i] = s;
+  }
+  alpha = solve(M, y, NC);
+}
+
+/* ================= geometry ================= */
+const faces = dec(DATA.surf.f, Uint32Array);
+const surfPos = restS.slice(), tumPos = restT.slice();
+const surfG = new THREE.BufferGeometry(); surfG.setAttribute("position", new THREE.BufferAttribute(surfPos, 3)); surfG.setIndex(new THREE.BufferAttribute(faces, 1)); surfG.computeVertexNormals();
+const colors = new Float32Array(NS * 3); surfG.setAttribute("color", new THREE.BufferAttribute(colors, 3));
+const tumG = new THREE.BufferGeometry(); tumG.setAttribute("position", new THREE.BufferAttribute(tumPos, 3)); tumG.setIndex(new THREE.BufferAttribute(dec(DATA.tumour.f, Uint32Array), 1)); tumG.computeVertexNormals();
+const NF = DATA.fine.nv, restF = dec(DATA.fine.v, Float32Array), fTri = dec(DATA.fine.tri, Uint32Array), fW = dec(DATA.fine.w, Float32Array), fNear = dec(DATA.fine.near, Uint32Array);
+const posF = restF.slice(), dispF = new Float32Array(NF * 3), colorsF = new Float32Array(NF * 3);
+const fineG = new THREE.BufferGeometry(); fineG.setAttribute("position", new THREE.BufferAttribute(posF, 3)); fineG.setIndex(new THREE.BufferAttribute(dec(DATA.fine.f, Uint32Array), 1));
+fineG.setAttribute("color", new THREE.BufferAttribute(colorsF, 3)); fineG.computeVertexNormals();
+const restNF = (() => { const g = fineG.clone(); g.computeVertexNormals(); return g.attributes.normal.array.slice(); })();
+const ghostG = new THREE.BufferGeometry(); ghostG.setAttribute("position", new THREE.BufferAttribute(restS.slice(), 3)); ghostG.setIndex(new THREE.BufferAttribute(faces, 1));
+const ctrlV = DATA.ctrl.map(p => { let b = 1e30, bi = 0; for (let v = 0; v < NS; v++) { const d = (restS[v*3]-p[0])**2 + (restS[v*3+1]-p[1])**2 + (restS[v*3+2]-p[2])**2; if (d < b) { b = d; bi = v; } } return bi; });
+const VIR = [[68,1,84],[59,82,139],[33,145,140],[94,201,98],[253,231,37]];
+function viridis(x) { x = Math.max(0, Math.min(1, x)) * 4; const i = Math.min(3, Math.floor(x)), f = x - i; return VIR[i].map((c, k) => (c + (VIR[i+1][k] - c) * f) / 255); }
+let maxStretch = 0, dirty = true;
+
+/* ================= left: the laparoscope ================= */
+const lapStage = document.getElementById("lapStage"), lapOv = document.getElementById("lapOv");
+const lapR = new THREE.WebGLRenderer({ canvas: document.getElementById("lap"), alpha: true, antialias: true }); lapR.setClearColor(0, 0);
+const lapCam = new THREE.Camera(); lapCam.matrixAutoUpdate = false;
+const lapScene = new THREE.Scene(), K = DATA.K.flat(), IMW = 1920, IMH = 1080;
+{ const fx = K[0], fy = K[4], cx = K[2], cy = K[5], n = 5, f = 3000;
+  lapCam.projectionMatrix.set(2*fx/IMW, 0, 1 - 2*cx/IMW, 0, 0, 2*fy/IMH, 2*cy/IMH - 1, 0, 0, 0, -(f+n)/(f-n), -2*f*n/(f-n), 0, 0, -1, 0);
+  lapCam.projectionMatrixInverse.copy(lapCam.projectionMatrix).invert(); }
+const liverLapMat = new THREE.ShaderMaterial({
+  vertexShader: `varying vec3 vN; varying vec3 vP; void main(){ vec4 p = modelViewMatrix * vec4(position, 1.0); vP = p.xyz; vN = normalMatrix * normal; gl_Position = projectionMatrix * p; }`,
+  fragmentShader: `varying vec3 vN; varying vec3 vP; void main(){
+    vec3 n = normalize(vN); vec3 e = normalize(-vP); if (dot(n, e) < 0.0) n = -n;
+    float d = max(dot(n, e), 0.0); float fall = 1.0 / (1.0 + pow(length(vP) / 180.0, 2.0));
+    vec3 c = vec3(0.50, 0.16, 0.12) * (0.18 + 1.25 * d) * (0.45 + 0.9 * fall) + vec3(0.9, 0.85, 0.8) * pow(d, 60.0) * 0.8 * fall;
+    gl_FragColor = vec4(c, 1.0); }`, side: THREE.DoubleSide });
+const lapBody = new THREE.Group(); lapBody.matrixAutoUpdate = false; lapScene.add(lapBody);
+lapBody.add(new THREE.Mesh(fineG, liverLapMat));
+const lapTum = new THREE.Mesh(tumG, new THREE.MeshBasicMaterial({ color: 0x46e08a, transparent: true, opacity: 0.6, depthTest: false })); lapTum.renderOrder = 3; lapTum.visible = false; lapBody.add(lapTum);
+lapScene.add(new THREE.AmbientLight(0xffffff, 0.35)); lapScene.add(new THREE.PointLight(0xffffff, 1.4, 0, 0));
+let camIdx = 0, Rc = null, tc = null;
+const camToBody = p => { const q = [p[0] - tc[0], p[1] - tc[1], p[2] - tc[2]]; return [Rc[0]*q[0] + Rc[3]*q[1] + Rc[6]*q[2], Rc[1]*q[0] + Rc[4]*q[1] + Rc[7]*q[2], Rc[2]*q[0] + Rc[5]*q[1] + Rc[8]*q[2]]; };
+
+/* ================= right: the whole organ ================= */
+const orgStage = document.getElementById("orgStage");
+const orgR = new THREE.WebGLRenderer({ canvas: document.getElementById("org"), antialias: true }); orgR.setClearColor(0x0a0e11, 1);
+const orgScene = new THREE.Scene(), orgCam = new THREE.PerspectiveCamera(38, 16 / 9, 5, 8000);
+orgScene.add(new THREE.AmbientLight(0xffffff, 0.75)); const sun = new THREE.DirectionalLight(0xffffff, 0.75); sun.position.set(200, 400, 500); orgScene.add(sun);
+const body = new THREE.Group(); body.matrixAutoUpdate = false; body.matrix.set(1, 0, 0, 0, 0, 0, 1, 0, 0, -1, 0, 0, 0, 0, 0, 1); orgScene.add(body);
+const orgLiver = new THREE.Mesh(fineG, new THREE.MeshLambertMaterial({ vertexColors: true, transparent: true, opacity: 0.82, side: THREE.DoubleSide, depthWrite: false })); orgLiver.renderOrder = 1; body.add(orgLiver);
+const ghost = new THREE.Mesh(ghostG, new THREE.MeshBasicMaterial({ color: 0x9aa7b2, wireframe: true, transparent: true, opacity: 0.08 })); body.add(ghost);
+const orgTum = new THREE.Mesh(tumG, new THREE.MeshBasicMaterial({ color: 0x46e08a, transparent: true, opacity: 0.9, depthTest: false })); orgTum.renderOrder = 4; body.add(orgTum);
+const fixGeom = new THREE.BufferGeometry(), ctrlGeom = new THREE.BufferGeometry();
+body.add(new THREE.Points(fixGeom, new THREE.PointsMaterial({ color: 0x4c8dff, size: 4, sizeAttenuation: false })));
+const ctrlPts = new THREE.Points(ctrlGeom, new THREE.PointsMaterial({ color: 0xe8eef2, size: 6, sizeAttenuation: false, depthTest: false })); ctrlPts.renderOrder = 5; ctrlPts.visible = false; body.add(ctrlPts);
+const frustum = new THREE.LineSegments(new THREE.BufferGeometry(), new THREE.LineBasicMaterial({ color: 0xe8eef2 })); body.add(frustum);
+function buildFrustum() {
+  const C = camToBody([0, 0, 0]), depth = 160, cs = [[0, 0], [IMW, 0], [IMW, IMH], [0, IMH]].map(([u, v]) => camToBody([(u - K[2]) / K[0] * depth, (v - K[5]) / K[4] * depth, depth]));
+  const L = []; cs.forEach((c, i) => L.push(...C, ...c, ...c, ...cs[(i + 1) % 4]));
+  frustum.geometry.setAttribute("position", new THREE.Float32BufferAttribute(L, 3)); frustum.geometry.computeBoundingSphere();
+}
+const orbit = { target: new THREE.Vector3(DATA.centre[0], DATA.centre[2], -DATA.centre[1]), r: 460, yaw: 0.5, pitch: 0.25 };
+
+/* ================= tools ================= */
+const TOOLS = {   // contact radius a (mm) sets the dent; shaft radius for drawing; action: grasp (clip and pull) or press
+  grasper:  { name: "Grasper", action: "grasp", a: 3.0, shaftR: 2.5 },
+  maryland: { name: "Maryland", action: "grasp", a: 2.5, shaftR: 2.5 },
+  hook:     { name: "Hook", action: "press", a: 1.5, shaftR: 2.5 },
+  probe:    { name: "Blunt probe", action: "press", a: 4.0, shaftR: 2.5 },
+  usprobe:  { name: "Ultrasound probe", action: "press", a: 7.0, shaftR: 5.0 } };
+const PORT_R = 75, PORT_Z = 30;                           // trocar position relative to the laparoscope (camera frame, mm)
+const portCam = deg => [PORT_R * Math.cos(deg * Math.PI / 180), PORT_R * Math.sin(deg * Math.PI / 180), PORT_Z];
+const UI = { type: "grasper", port: 45, roll: 0, jaw: 10 };
+const restN = (() => { const g = ghostG.clone(); g.computeVertexNormals(); return g.attributes.normal.array; })();
+const shaftMat = new THREE.MeshStandardMaterial({ color: 0x2f3337, metalness: 0.5, roughness: 0.45 });
+const metalMat = new THREE.MeshStandardMaterial({ color: 0xc4cacd, metalness: 0.9, roughness: 0.25 });
+const usMat = new THREE.MeshStandardMaterial({ color: 0x3b4046, metalness: 0.3, roughness: 0.6 });
+function box(w, h, d, mat, y) { const g = new THREE.BoxGeometry(w, h, d); g.translate(0, y, 0); return new THREE.Mesh(g, mat); }
+function cyl(r0, r1, h, mat, y) { const g = new THREE.CylinderGeometry(r0, r1, h, 18); g.translate(0, y, 0); return new THREE.Mesh(g, mat); }
+function makeToolModel(type) {    // local frame: tip at the origin, shaft along +y toward the trocar
+  const T = TOOLS[type], g = new THREE.Group(), jaws = [];
+  let head = 0;
+  if (type === "grasper" || type === "maryland") {
+    head = type === "grasper" ? 18 : 16;
+    for (const sgn of [1, -1]) {
+      const pivot = new THREE.Group(); pivot.position.y = head;
+      const jaw = box(type === "grasper" ? 3.2 : 2.2, head, 1.1, metalMat, -head / 2); jaw.position.z = sgn * 0.7; pivot.add(jaw);
+      if (type === "maryland") { const tipSeg = box(2.0, 5, 1.0, metalMat, -2.5); tipSeg.position.set(0, -head + 1, sgn * 0.7); tipSeg.rotation.x = sgn * -0.45; pivot.add(tipSeg); }
+      pivot.userData.sgn = sgn; jaws.push(pivot); g.add(pivot);
+    }
+    g.add(cyl(2.5, 2.5, 3, metalMat, head + 1.5)); head += 3;
+  } else if (type === "hook") {
+    head = 12; g.add(cyl(0.9, 0.9, head, metalMat, head / 2));
+    const l = cyl(0.9, 0.9, 6, metalMat, 0); l.rotation.z = Math.PI / 2; l.position.set(3, 0.4, 0); g.add(l);
+  } else if (type === "probe") {
+    head = 12; const sph = new THREE.Mesh(new THREE.SphereGeometry(3, 18, 12), metalMat); sph.position.y = 3; g.add(sph); g.add(cyl(2.5, 3, 9, metalMat, 7.5));
+  } else {
+    head = 40; g.add(box(10, 38, 7, usMat, 19)); g.add(cyl(5, 5, 2, metalMat, 39));
+  }
+  const shaft = cyl(T.shaftR, T.shaftR, 1, shaftMat, 0.5); shaft.position.y = head; g.add(shaft);
+  return { g, shaft, head, jaws };
+}
+const toolModels = [[], []];                               // per scene: models for each handle
+function drawTools() {
+  if (!Rc) return;
+  [lapBody, body].forEach((parent, gi) => {
+    const list = toolModels[gi];
+    while (list.length > handles.length) parent.remove(list.pop().g);
+    handles.forEach((h, i) => {
+      if (!list[i] || list[i].type !== h.type) { if (list[i]) parent.remove(list[i].g); const m = makeToolModel(h.type); m.type = h.type; m.g.visible = document.getElementById("showTools").checked; list[i] = m; parent.add(m.g); }
+      const m = list[i], tip = new THREE.Vector3(posF[h.fv*3], posF[h.fv*3+1], posF[h.fv*3+2]), port = new THREE.Vector3(...camToBody(portCam(h.port)));
+      const ax = port.clone().sub(tip), L = ax.length(); ax.normalize();
+      m.g.position.copy(tip);
+      m.g.quaternion.setFromUnitVectors(new THREE.Vector3(0, 1, 0), ax).multiply(new THREE.Quaternion().setFromAxisAngle(new THREE.Vector3(0, 1, 0), h.roll * Math.PI / 180));
+      m.shaft.scale.y = Math.max(1, L - m.head);
+      m.jaws.forEach(j => j.rotation.x = j.userData.sgn * h.jaw * Math.PI / 360);
+    });
+  });
+}
+function shaftDir(h) {          // unit vector from the trocar toward the touched point (the direction a press pushes)
+  const port = camToBody(portCam(h.port)), tip = [0, 1, 2].map(d => posF[h.fv*3+d]);
+  const d = tip.map((t, k) => t - port[k]), n = Math.hypot(...d); return d.map(x => x / n);
+}
+function organStiffness(h) {    // k_g = 1 / (r^T E^-1 r): least-energy organ stiffness at the touched point along the push
+  const r = new Float64Array(NC); for (let c = 0; c < NC; c++) for (let d = 0; d < 3; d++) r[c] += h.dir[d] * U[(h.v * 3 + d) * NCASE + c];
+  const z = solve(Float64Array.from(E), Float64Array.from(r), NC); let q = 0; for (let c = 0; c < NC; c++) q += r[c] * z[c];
+  return 1 / q;
+}
+function pressSplit(h) {        // two springs in a row: the local dent (flat round tip on an elastic body) and the organ
+  const kL = 2 * TOOLS[h.type].a / (1 - DATA.nu * DATA.nu);   // Young's modulus 1, same units as the finite elements
+  if (h.kG === undefined || h.kGport !== h.port) { h.dir = shaftDir(h); h.kG = organStiffness(h); h.kGport = h.port; }
+  return kL / (kL + h.kG);       // share of the press that moves the organ; the rest is the dent
+}
+function update() {
+  const cf = new Float64Array(NCASE); background(cf); for (let c = 0; c < NC; c++) cf[c] = alpha[c];
+  for (let r = 0; r < NA * 3; r++) disp[r] = evalRow(r, cf);
+  for (let v = 0; v < NS * 3; v++) surfPos[v] = restS[v] + disp[v];
+  maxStretch = 0;                                          // organ-scale stretch (LIBR part only; a sharp tip's dent is meant to be local)
+  for (let f = 0; f < faces.length; f += 3) for (let e = 0; e < 3; e++) {
+    const a = faces[f + e], b = faces[f + (e + 1) % 3];
+    const l0 = Math.hypot(restS[a*3]-restS[b*3], restS[a*3+1]-restS[b*3+1], restS[a*3+2]-restS[b*3+2]), l1 = Math.hypot(surfPos[a*3]-surfPos[b*3], surfPos[a*3+1]-surfPos[b*3+1], surfPos[a*3+2]-surfPos[b*3+2]);
+    if (l0 > 1) maxStretch = Math.max(maxStretch, l1 / l0 - 1);
+  }
+  for (let i = 0; i < NF; i++) for (let d = 0; d < 3; d++) {    // fine surface: LIBR movement interpolated from the coarse surface
+    const t = i * 3; dispF[t + d] = fW[t] * disp[fTri[t]*3+d] + fW[t+1] * disp[fTri[t+1]*3+d] + fW[t+2] * disp[fTri[t+2]*3+d];
+  }
+  for (const h of handles) {                               // local dent of each press: w = depth for r <= a, depth * 2/pi * asin(a/r) beyond
+    if (h.action !== "press" || !h.press) continue;
+    const frac = pressSplit(h), dl = h.press * (1 - frac), a = TOOLS[h.type].a, k0 = h.fv * 3;
+    const c = [restF[k0] + dispF[k0], restF[k0+1] + dispF[k0+1], restF[k0+2] + dispF[k0+2]], nc = [restNF[k0], restNF[k0+1], restNF[k0+2]];
+    h.dent = dl; h.organ = h.press * frac;
+    const dentAt = (p, facing) => { const r = Math.hypot(p[0] - c[0], p[1] - c[1], p[2] - c[2]); if (r > 12 * a || facing < 0.3) return 0; return r <= a ? dl : dl * 2 / Math.PI * Math.asin(a / r); };
+    for (let i = 0; i < NF; i++) {
+      const k = i * 3, w = dentAt([restF[k] + dispF[k], restF[k+1] + dispF[k+1], restF[k+2] + dispF[k+2]], restNF[k]*nc[0] + restNF[k+1]*nc[1] + restNF[k+2]*nc[2]);
+      if (w) { dispF[k] += w * h.dir[0]; dispF[k+1] += w * h.dir[1]; dispF[k+2] += w * h.dir[2]; }
+    }
+    for (let i = 0; i < NTV; i++) {
+      const k = (NS + i) * 3, w = dentAt([restT[i*3] + disp[k], restT[i*3+1] + disp[k+1], restT[i*3+2] + disp[k+2]], 1);
+      if (w) { disp[k] += w * h.dir[0]; disp[k+1] += w * h.dir[1]; disp[k+2] += w * h.dir[2]; }
+    }
+  }
+  for (let v = 0; v < NF * 3; v++) posF[v] = restF[v] + dispF[v];
+  for (let v = 0; v < NTV * 3; v++) tumPos[v] = restT[v] + disp[NS * 3 + v];
+  fineG.attributes.position.needsUpdate = true; fineG.computeVertexNormals(); tumG.attributes.position.needsUpdate = true; tumG.computeVertexNormals();
+  for (let v = 0; v < NF; v++) { const c = viridis(Math.hypot(dispF[v*3], dispF[v*3+1], dispF[v*3+2]) / 30); colorsF[v*3] = c[0]; colorsF[v*3+1] = c[1]; colorsF[v*3+2] = c[2]; }
+  fineG.attributes.color.needsUpdate = true;
+  const fp = []; DATA.fixed_render.forEach(v => fp.push(surfPos[v*3], surfPos[v*3+1], surfPos[v*3+2])); fixGeom.setAttribute("position", new THREE.Float32BufferAttribute(fp, 3));
+  const cp = []; ctrlV.forEach(v => cp.push(surfPos[v*3], surfPos[v*3+1], surfPos[v*3+2])); ctrlGeom.setAttribute("position", new THREE.Float32BufferAttribute(cp, 3));
+  drawTools(); showStats(); dirty = true;
+}
+function setLapCam(i) {
+  camIdx = i; const c = DATA.cams[i]; Rc = c.R.flat(); tc = c.t;
+  lapBody.matrix.set(Rc[0], Rc[1], Rc[2], tc[0], -Rc[3], -Rc[4], -Rc[5], -tc[1], -Rc[6], -Rc[7], -Rc[8], -tc[2], 0, 0, 0, 1); lapBody.matrixWorldNeedsUpdate = true;
+  buildFrustum(); drawTools(); dirty = true;
+}
+let drag = null;
+const HINT = { grasp: "Click on the liver to clip it; drag to pull it sideways; use the Lift slider (or scroll) to lift it toward the camera. Click a tool again to pick it back up.",
+               press: "Click on the liver: the tool pushes in 5 mm along its shaft. Set the depth with the Push depth slider (or drag up/down). Click a tool again to pick it back up." };
+const toolsEl = document.getElementById("tools");
+Object.entries(TOOLS).forEach(([k, T]) => { const b = document.createElement("button"); b.dataset.tool = k; b.textContent = T.name; b.onclick = () => setTool(k); toolsEl.appendChild(b); });
+function setTool(t) {
+  UI.type = t; selected = null; showSelected(); toolsEl.querySelectorAll("button").forEach(b => b.setAttribute("aria-pressed", b.dataset.tool === t));
+  document.getElementById("toolHint").textContent = `${TOOLS[t].name} (${TOOLS[t].action === "grasp" ? "grasps" : "presses"}, tip radius ${TOOLS[t].a} mm). ` + HINT[TOOLS[t].action];
+  document.getElementById("jawWrap").hidden = TOOLS[t].action !== "grasp";
+}
+const portsEl = document.getElementById("ports");
+[["↖", 225], ["↑", 270], ["↗", 315], ["←", 180], null, ["→", 0], ["↙", 135], ["↓", 90], ["↘", 45]].forEach(c => {
+  if (!c) { const m = document.createElement("span"); m.textContent = "port"; portsEl.appendChild(m); return; }
+  const b = document.createElement("button"); b.textContent = c[0]; b.dataset.deg = c[1]; b.setAttribute("aria-label", `enters from ${c[0]}`);
+  b.onclick = () => { UI.port = c[1]; portsEl.querySelectorAll("button").forEach(x => x.setAttribute("aria-pressed", x === b)); applyUI(); };
+  b.setAttribute("aria-pressed", c[1] === UI.port); portsEl.appendChild(b);
+});
+let selected = null;            // the tool the side / roll / jaws controls act on: the one just placed, until a new tool type is picked
+function applyUI() {
+  if (selected && handles.includes(selected)) { selected.port = UI.port; selected.roll = UI.roll; selected.jaw = UI.jaw; }
+  fit(); update(); showSelected();
+}
+function showSelected() {
+  const sel = selected && handles.includes(selected) ? selected : null;
+  document.getElementById("depthWrap").hidden = !(sel && sel.action === "press");
+  document.getElementById("liftWrap").hidden = !(sel && sel.action === "grasp");
+  if (sel && sel.action === "press") { document.getElementById("depth").value = sel.press; document.getElementById("depthOut").textContent = `${sel.press.toFixed(1)} mm`; }
+  if (sel && sel.action === "grasp") { document.getElementById("lift").value = sel.lift; document.getElementById("liftOut").textContent = `${sel.lift.toFixed(1)} mm`; }
+  const el = document.getElementById("selInfo"); if (!el) return;
+  el.textContent = selected && handles.includes(selected) ? `Adjusting: ${TOOLS[selected.type].name} #${handles.indexOf(selected) + 1}. Pick a tool type to set up the next one.` : "Settings apply to the next tool you place.";
+}
+[["roll", "°"], ["jaw", "°"]].forEach(([k, u]) => { const el = document.getElementById(k), out = document.getElementById(k + "Out"); const f = () => { UI[k] = +el.value; out.textContent = `${UI[k]}${u}`; }; el.oninput = () => { f(); applyUI(); }; f(); });
+document.getElementById("depth").oninput = ev => { if (selected && selected.action === "press") { selected.press = +ev.target.value; fit(); update(); showSelected(); } };
+document.getElementById("lift").oninput = ev => { if (selected && selected.action === "grasp") { selected.lift = +ev.target.value; fit(); update(); showSelected(); } };
+setTool("grasper");
+const ray = new THREE.Raycaster(), hitMesh = new THREE.Mesh(fineG, new THREE.MeshBasicMaterial({ side: THREE.DoubleSide }));
+function castLap(u, v) {
+  const C = camToBody([0, 0, 0]), F = camToBody([(u - K[2]) / K[0], (v - K[5]) / K[4], 1]);
+  const dir = new THREE.Vector3(F[0] - C[0], F[1] - C[1], F[2] - C[2]).normalize();
+  fineG.computeBoundingSphere(); fineG.computeBoundingBox();
+  ray.set(new THREE.Vector3(...C), dir); const h = ray.intersectObject(hitMesh, false)[0]; if (!h) return null;
+  const vs = [h.face.a, h.face.b, h.face.c], p = h.point, dd = x => Math.hypot(posF[x*3]-p.x, posF[x*3+1]-p.y, posF[x*3+2]-p.z);
+  const fv = vs.reduce((b, x) => dd(x) < dd(b) ? x : b, vs[0]);
+  return { v: fNear[fv], fv, dir: dir.toArray(), dist: h.distance };
+}
+lapStage.addEventListener("pointerdown", ev => {
+  const r = lapStage.getBoundingClientRect(), h = castLap((ev.clientX - r.left) / r.width * IMW, (ev.clientY - r.top) / r.height * IMH); if (!h) return;
+  try { lapStage.setPointerCapture(ev.pointerId); } catch (e) {}
+  const hp = [posF[h.fv*3], posF[h.fv*3+1], posF[h.fv*3+2]];
+  const near = handles.find(o => Math.hypot(posF[o.fv*3] - hp[0], posF[o.fv*3+1] - hp[1], posF[o.fv*3+2] - hp[2]) < 8);
+  if (near) { selected = near; showSelected(); drag = { x: ev.clientX, y: ev.clientY, h: near }; return; }   // pick up the tool already there
+  const hd = { fv: h.fv, lift: 0, type: UI.type, action: TOOLS[UI.type].action, tool: TOOLS[UI.type].action, v: h.v, start: [disp[h.v*3], disp[h.v*3+1], disp[h.v*3+2]], D: [0, 0, 0],
+               view: h.dir, dir: null, depth: h.dist, press: TOOLS[UI.type].action === "press" ? 5 : 0, port: UI.port, roll: UI.roll, jaw: UI.jaw };
+  if (hd.action === "press") hd.dir = shaftDir(hd);
+  handles.push(hd); selected = hd; showSelected(); drag = { x: ev.clientX, y: ev.clientY, h: hd }; fit(); update();
+});
+lapStage.addEventListener("pointermove", ev => {
+  if (!drag) return; showSelected(); const h = drag.h, r = lapStage.getBoundingClientRect(), du = (ev.clientX - drag.x) * IMW / r.width, dv = (ev.clientY - drag.y) * IMH / r.height;
+  drag.x = ev.clientX; drag.y = ev.clientY;
+  if (h.action === "press") h.press = Math.min(25, Math.max(0, h.press + dv * 0.05));
+  else { const z = h.depth, C0 = camToBody([0, 0, 0]), C1 = camToBody([du * z / K[0], dv * z / K[4], 0]); h.D = h.D.map((c, k) => c + C1[k] - C0[k]); }
+  fit(); update();
+});
+const endDrag = () => drag = null; lapStage.addEventListener("pointerup", endDrag); lapStage.addEventListener("pointercancel", endDrag);
+lapStage.addEventListener("wheel", ev => {
+  ev.preventDefault(); const h = handles[handles.length - 1]; if (!h) return;
+  if (h.action === "press") h.press = Math.min(25, Math.max(0, h.press + ev.deltaY * 0.03));
+  else h.lift = Math.min(40, Math.max(-20, (h.lift || 0) - ev.deltaY * 0.05));
+  fit(); update(); showSelected();
+}, { passive: false });
+document.getElementById("releaseLast").onclick = () => { handles.pop(); fit(); update(); showSelected(); };
+document.getElementById("releaseAll").onclick = () => { handles.length = 0; fit(); update(); showSelected(); };
+
+/* right: orbit */
+let odrag = null;
+orgStage.addEventListener("pointerdown", ev => { try { orgStage.setPointerCapture(ev.pointerId); } catch (e) {} odrag = { x: ev.clientX, y: ev.clientY, pan: ev.shiftKey || ev.button === 2 }; });
+orgStage.addEventListener("pointermove", ev => {
+  if (!odrag) return; const du = ev.clientX - odrag.x, dv = ev.clientY - odrag.y; odrag.x = ev.clientX; odrag.y = ev.clientY;
+  if (odrag.pan) { const right = new THREE.Vector3().setFromMatrixColumn(orgCam.matrixWorld, 0), up = new THREE.Vector3().setFromMatrixColumn(orgCam.matrixWorld, 1), k = orbit.r * 0.0016; orbit.target.addScaledVector(right, -du * k).addScaledVector(up, dv * k); }
+  else { orbit.yaw -= du * 0.006; orbit.pitch = Math.max(-1.5, Math.min(1.5, orbit.pitch + dv * 0.006)); }
+  dirty = true;
+});
+orgStage.addEventListener("pointerup", () => odrag = null); orgStage.addEventListener("contextmenu", e => e.preventDefault());
+orgStage.addEventListener("wheel", ev => { ev.preventDefault(); orbit.r *= Math.exp(ev.deltaY * 0.0012); dirty = true; }, { passive: false });
+document.getElementById("resetView").onclick = () => { orbit.target.set(DATA.centre[0], DATA.centre[2], -DATA.centre[1]); orbit.r = 460; orbit.yaw = 0.5; orbit.pitch = 0.25; dirty = true; };
+document.getElementById("ghost").onchange = ev => { ghost.visible = ev.target.checked; dirty = true; };
+document.getElementById("showCtrl").onchange = ev => { ctrlPts.visible = ev.target.checked; dirty = true; };
+document.getElementById("xray").onchange = ev => { lapTum.visible = ev.target.checked; dirty = true; };
+document.getElementById("showTools").onchange = ev => { toolModels.forEach(list => list.forEach(m => m.g.visible = ev.target.checked)); dirty = true; };
+
+/* ================= sliders, stats, recordings ================= */
+const fmt = { gas: v => v === 0 ? "off" : `${Math.round(v * 100)} %`, tiltHead: v => `${v}°`, tiltSide: v => `${v}°`, stiff: v => `×${v.toFixed(2)}` };
+["gas", "tiltHead", "tiltSide", "stiff"].forEach(k => { const el = document.getElementById(k), out = document.getElementById(k + "Out"); el.oninput = () => { P[k] = +el.value; out.textContent = fmt[k](P[k]); fit(); update(); }; P[k] = +el.value; out.textContent = fmt[k](P[k]); });
+function stats() {
+  let mx = 0, sum = 0; for (let v = 0; v < NF; v++) { const d = Math.hypot(dispF[v*3], dispF[v*3+1], dispF[v*3+2]); mx = Math.max(mx, d); sum += d; }
+  const t = [0, 0, 0]; for (let v = 0; v < NTV; v++) for (let k = 0; k < 3; k++) t[k] += disp[(NS + v)*3+k] / NTV;
+  return { surface_max_mm: mx, surface_mean_mm: sum / NF, tumour_moved_mm: Math.hypot(...t), max_stretch: maxStretch };
+}
+function showStats() {
+  const s = stats();
+  document.getElementById("stats").innerHTML = `<span>surface moved: max <b>${s.surface_max_mm.toFixed(1)} mm</b>, mean <b>${s.surface_mean_mm.toFixed(1)} mm</b></span><span>tumour moved: <b>${s.tumour_moved_mm.toFixed(1)} mm</b></span><span>tools: <b>${handles.length}</b></span>` + handles.filter(h => h.action === "press" && h.press).map(h => `<span>${TOOLS[h.type].name}: pushed <b>${h.press.toFixed(1)} mm</b> = dent ${(h.dent || 0).toFixed(1)} + organ ${(h.organ || 0).toFixed(1)}</span>`).join("")
+    + `<span class="${s.max_stretch > 0.2 ? "warn" : ""}">largest surface stretch: <b>${(100 * s.max_stretch).toFixed(0)} %</b>${s.max_stretch > 0.2 ? " (beyond what linear elasticity models well; a lift this big should rotate the lobe)" : ""}</span>`;
+}
+const recs = [];
+try { const s = localStorage.getItem(`liverLabLIBR_${DATA.patient}`); if (s) recs.push(...JSON.parse(s)); } catch (e) {}
+function showRecs() {
+  document.getElementById("recInfo").textContent = recs.length ? `${recs.length} recording${recs.length > 1 ? "s" : ""} (kept in this browser; download to save them as a file).` : "No recordings yet.";
+  document.getElementById("recList").innerHTML = recs.map((r, i) => `<div>#${i + 1} · ${r.tools.map(h => h.tool).join(" + ") || "no tool"} · gas ${fmt.gas(r.gas)} · tilt ${r.tilt_head_deg}°/${r.tilt_side_deg}° · surface max ${r.stats.surface_max_mm.toFixed(0)} mm · tumour ${r.stats.tumour_moved_mm.toFixed(1)} mm · stretch ${(100 * r.stats.max_stretch).toFixed(0)} %</div>`).join("");
+}
+document.getElementById("record").onclick = () => {
+  recs.push({ patient: DATA.patient, physics: { model: "LIBR linear elastic", nu: DATA.nu, control_points: DATA.nctrl, sigma_mm: DATA.sigma_mm },
+    camera_key: DATA.cams[camIdx].key, gas: P.gas, tilt_head_deg: P.tiltHead, tilt_side_deg: P.tiltSide, stiffness: P.stiff,
+    tools: handles.map(h => ({ fine_vertex: h.fv, tool: h.type, action: h.action, tip_radius_mm: TOOLS[h.type].a, enters_from_deg: h.port, roll_deg: h.roll, jaw_open_deg: h.jaw,
+      lift_mm: h.lift || 0, surface_vertex: h.v, touched_ct_mm: [0, 1, 2].map(d => restS[h.v*3+d]), move_mm: h.D, press_mm: h.press, dent_mm: h.dent || 0, organ_mm: h.organ || 0, push_dir: h.dir, view_dir: h.view })),
+    alpha: Array.from(alpha), stats: stats(), time: new Date().toISOString() });
+  try { localStorage.setItem(`liverLabLIBR_${DATA.patient}`, JSON.stringify(recs)); } catch (e) {}
+  showRecs();
+};
+document.getElementById("delLast").onclick = () => { recs.pop(); try { localStorage.setItem(`liverLabLIBR_${DATA.patient}`, JSON.stringify(recs)); } catch (e) {} showRecs(); };
+document.getElementById("download").onclick = () => {
+  const a = document.createElement("a"); a.href = URL.createObjectURL(new Blob([JSON.stringify({ patient: DATA.patient, recordings: recs })], { type: "application/json" }));
+  a.download = `liver_lab_${DATA.patient}.json`; a.click();
+};
+document.getElementById("reset").onclick = () => {
+  handles.length = 0; [["gas", 0], ["tiltHead", 0], ["tiltSide", 0], ["stiff", 1]].forEach(([k, v]) => { document.getElementById(k).value = v; P[k] = v; document.getElementById(k + "Out").textContent = fmt[k](v); });
+  fit(); update();
+};
+showRecs();
+
+/* ================= camera select, drawing ================= */
+const camSel = document.getElementById("camSel");
+DATA.cams.forEach((c, i) => { const o = document.createElement("option"); o.value = i; o.textContent = `view ${i + 1} (dataset pose ${c.key})`; camSel.appendChild(o); });
+camSel.onchange = () => setLapCam(+camSel.value);
+function resize() {
+  for (const [R_, st] of [[lapR, lapStage], [orgR, orgStage]]) { const r = st.getBoundingClientRect(); R_.setPixelRatio(Math.min(devicePixelRatio || 1, 2)); R_.setSize(r.width, r.height, false); }
+  const r = lapStage.getBoundingClientRect(), dpr = Math.min(devicePixelRatio || 1, 2); lapOv.width = r.width * dpr; lapOv.height = r.height * dpr;
+  const g = lapOv.getContext("2d"); g.fillStyle = "#000"; g.beginPath(); g.rect(0, 0, lapOv.width, lapOv.height); g.arc(lapOv.width / 2, lapOv.height / 2, lapOv.width * 0.5, 0, 2 * Math.PI, true); g.fill("evenodd");
+  const ro = orgStage.getBoundingClientRect(); orgCam.aspect = ro.width / ro.height; orgCam.updateProjectionMatrix(); dirty = true;
+}
+new ResizeObserver(resize).observe(lapStage); new ResizeObserver(resize).observe(orgStage);
+function loop() {
+  if (dirty) {
+    const o = orbit, c = Math.cos(o.pitch);
+    orgCam.position.set(o.target.x + o.r*c*Math.sin(o.yaw), o.target.y + o.r*Math.sin(o.pitch), o.target.z + o.r*c*Math.cos(o.yaw)); orgCam.lookAt(o.target);
+    lapR.render(lapScene, lapCam); orgR.render(orgScene, orgCam); dirty = false;
+  }
+  requestAnimationFrame(loop);
+}
+setLapCam(0); resize(); fit(); update(); loop();
+window.__lab = { handles, P, stats, castLap, fit, update, disp, dispF, posF, restF, DATA, setTool, UI, applyUI, get alpha() { return alpha; } };
+</script>
+</body>
+</html>

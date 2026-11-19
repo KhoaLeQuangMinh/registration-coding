@@ -195,6 +195,23 @@ def e1(rows, lines):
                  f"distance {spearman(np.array([r['distance_mm'] for r in rows]), tre):+.2f} (exploratory)")
 
 
+def extras(rows, lines):
+    """Also promised by the pre-registration: on-screen part, probes in view only, per patient. No verdicts."""
+    cat = lambda key, sel: np.concatenate([r[key][r["in_view"]] if sel else r[key] for r in rows])
+    good = [r for r in rows if r["dice"] >= DICE_ABS]
+    in_good = np.concatenate([r["tre"][r["in_view"]] for r in good]) if good else np.array([])
+    lines.append(f"  also: on-screen part median {np.nanmedian(cat('px', False)):.1f} px; "
+                 f"probes in view {100 * np.mean(cat('in_view', False)):.0f} %, their median TRE "
+                 f"{np.median(cat('tre', True)):.1f} mm; Dice >= 0.90 views, in-view probes > 10 mm: "
+                 f"{100 * (in_good > MARGIN_MM).mean() if in_good.size else np.nan:.1f} %")
+    for pid in sorted({r["patient"] for r in rows}):
+        rp = [r for r in rows if r["patient"] == pid]
+        gp = [r for r in rp if r["dice"] >= DICE_ABS]
+        lines.append(f"     patient {pid:02d}: {len(rp)} views, median Dice {np.median([r['dice'] for r in rp]):.3f}, "
+                     f"median view TRE {np.median([r['view_tre_mm'] for r in rp]):.1f} mm, "
+                     f"Dice >= 0.90 probes > 10 mm {miss_rate(gp):.1f} % ({len(gp)} views)")
+
+
 def h3(by_cond, lines):
     A = {(r["patient"], r["view"]): r for r in by_cond["A"]}
     for cond, rows in by_cond.items():
@@ -236,6 +253,7 @@ def main():
         h1(rows_c, lines)
         h2(rows_c, lines)
         e1(rows_c, lines)
+        extras(rows_c, lines)
     lines.append("\n== H3: does Dice notice a wrong scale? ==")
     h3(by_cond, lines)
 
@@ -245,10 +263,14 @@ def main():
         f.write(text + "\n")
     with open(os.path.join(args.pred_dir, "per_view.csv"), "w", newline="") as f:
         keys = ["condition", "patient", "view", "scale", "dice", "distance_mm", "view_tre_mm"]
-        w = csv.DictWriter(f, fieldnames=keys + ["probes_over_10mm_pct"])
+        w = csv.DictWriter(f, fieldnames=keys + ["probes_over_10mm_pct", "median_depth_mm", "median_px",
+                                                 "probes_in_view", "in_view_tre_mm"])
         w.writeheader()
         for r in rows:
-            w.writerow({**{k: r[k] for k in keys}, "probes_over_10mm_pct": 100 * (r["tre"] > MARGIN_MM).mean()})
+            iv = r["in_view"]
+            w.writerow({**{k: r[k] for k in keys}, "probes_over_10mm_pct": 100 * (r["tre"] > MARGIN_MM).mean(),
+                        "median_depth_mm": np.median(r["depth"]), "median_px": np.nanmedian(r["px"]),
+                        "probes_in_view": int(iv.sum()), "in_view_tre_mm": r["tre"][iv].mean() if iv.any() else ""})
     with open(os.path.join(args.pred_dir, "excluded_views.csv"), "w", newline="") as f:
         w = csv.writer(f)
         w.writerow(["patient", "view", "true_pose_dice", "far_point_fraction"])
