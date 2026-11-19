@@ -12,6 +12,7 @@ Shape error after removing scale and shift, measured at the generator's angular 
 | Flattening factor k | 0.82 | 0.36 - 1.09 | 1 = right relief; < 1 = flattened; > 1 = exaggerated |
 | Bump size (autocorrelation half-width) | 23 px | 17 - 33 | at focal 343 px; ~ Gaussian sigma 14 px (10 - 20) |
 | AbsRel (after scale + shift) | 0.048 | 0.028 - 0.067 | for comparison with the literature |
+| Disparity shift (fraction of the median true disparity) | -0.61 | -0.86 - -0.46 | the unknown offset in Depth Anything's disparity: turning its raw output into depth without knowing it exaggerates the relief strongly (far parts blow up) |
 
 The three parts are measured one at a time, so they do not add up to the total (they partly cancel or overlap).
 Per-image numbers: `summary.csv`; panels: `figures/` (on gpu-a240, `/data/khoalq/registration/depth-noise-estimate/results`).
@@ -31,6 +32,7 @@ Per-image numbers: `summary.csv`; panels: `figures/` (on gpu-a240, `/data/khoalq
 | Slant | 6 - 16 deg | 0 - 20 deg |
 | Flattening k | 0.36 - 1.09 | 0.3 - 1.2 |
 | Combined | total 16 - 28 deg | all three applied together, not one kind per sample |
+| Scale + shift | disparity shift -0.86 - -0.46 | either simulate the shift (realistic distortion, some invalid points) or, cleaner, feed the model the affine-normalised disparity (median removed, divided by its spread) in training AND on real images, so scale and shift both drop out |
 
 ## Limits
 
