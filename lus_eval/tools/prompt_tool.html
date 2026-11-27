@@ -1,0 +1,296 @@
+<!doctype html>
+<html lang="en">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<title>LUS liver prompts</title>
+<style>
+  :root { --bg:#16181c; --panel:#20242a; --line:#343a43; --text:#e8eaed; --muted:#9aa3ad; --accent:#f2c744; --ok:#46c28a; --pos:#2fbf71; --neg:#e5484d; --add:#3ea6ff; --cut:#ff9d2e; }
+  * { box-sizing: border-box; }
+  html, body { height: 100%; margin: 0; }
+  body { background: var(--bg); color: var(--text); font: 14px/1.45 system-ui, -apple-system, "Segoe UI", sans-serif; display: flex; }
+  aside { width: 310px; flex: none; background: var(--panel); border-right: 1px solid var(--line); display: flex; flex-direction: column; }
+  .pad { padding: 14px 16px; }
+  h1 { font-size: 16px; margin: 0 0 8px; }
+  ol { margin: 0; padding-left: 18px; color: var(--muted); }
+  ol b { color: var(--text); font-weight: 600; }
+  li { margin-bottom: 5px; }
+  .count { font-variant-numeric: tabular-nums; font-size: 13px; color: var(--muted); border-top: 1px solid var(--line); border-bottom: 1px solid var(--line); }
+  .count b { color: var(--text); }
+  #list { overflow-y: auto; flex: 1; padding: 8px 10px 12px; }
+  .group { color: var(--muted); font-size: 12px; margin: 10px 6px 4px; }
+  .items { display: grid; grid-template-columns: repeat(7, 1fr); gap: 4px; }
+  .item { border: 1px solid var(--line); background: transparent; color: var(--text); border-radius: 5px; padding: 5px 0; font: inherit; font-size: 12px; cursor: pointer; font-variant-numeric: tabular-nums; }
+  .item.done { background: rgba(70,194,138,.16); border-color: var(--ok); }
+  .item.current { outline: 2px solid var(--accent); outline-offset: 1px; }
+  main { flex: 1; min-width: 0; display: flex; flex-direction: column; }
+  .bar { display: flex; align-items: center; gap: 8px; padding: 10px 14px; border-bottom: 1px solid var(--line); flex-wrap: wrap; }
+  .bar .name { font-weight: 600; font-variant-numeric: tabular-nums; margin-right: auto; }
+  .tools { display: flex; border: 1px solid var(--line); border-radius: 6px; overflow: hidden; }
+  .tool { background: #2b3038; color: var(--text); border: 0; border-right: 1px solid var(--line); padding: 6px 11px; font: inherit; cursor: pointer; }
+  .tool:last-child { border-right: 0; }
+  .tool.on { background: var(--text); color: #16181c; font-weight: 600; }
+  .dot { display: inline-block; width: 9px; height: 9px; border-radius: 50%; margin-right: 5px; }
+  button.act { background: #2b3038; color: var(--text); border: 1px solid var(--line); border-radius: 6px; padding: 6px 11px; font: inherit; cursor: pointer; }
+  button.act:hover { background: #353b45; }
+  button.primary { background: var(--accent); color: #1b1b1b; border-color: var(--accent); font-weight: 600; }
+  kbd { font: 11px ui-monospace, monospace; background: #111; border: 1px solid var(--line); border-radius: 3px; padding: 0 4px; color: var(--muted); }
+  .tool.on kbd { background: #ddd; color: #333; border-color: #bbb; }
+  #stage { flex: 1; min-height: 0; position: relative; }
+  canvas { position: absolute; inset: 0; width: 100%; height: 100%; cursor: crosshair; }
+  .status { padding: 6px 14px; color: var(--muted); font-size: 12px; border-top: 1px solid var(--line); min-height: 30px; }
+</style>
+</head>
+<body>
+<aside>
+  <div class="pad">
+    <h1>Mark the liver</h1>
+    <ol>
+      <li><b>Box:</b> drag a box tightly around the visible liver. The tool then switches to Liver.</li>
+      <li><b>Liver:</b> click for a point, or drag to scribble, on the liver. If a tool or the probe splits the liver, mark each part.</li>
+      <li><b>Not liver:</b> click or scribble on anything inside the box that is not liver: the ultrasound probe, tools, fat, other organs.</li>
+      <li><b>Corrections</b>, only after looking at the result: <b>Add area</b> / <b>Remove area</b>: draw a loop around a region; it is put into / taken out of the final mask as drawn, without SAM.</li>
+      <li><b>Not sure what is liver?</b> Press <b>K</b> to show Koo et al.'s expert lines for this image: <span style="color:#3cff3c">silhouette</span>, <span style="color:#ffdc00">ridge</span> (the liver's sharp lower edge), <span style="color:#3c8cff">ligament</span>. They only mark liver edges, not the whole liver.</li>
+      <li>When all 46 are done, press <b>Download</b> and tell Claude.</li>
+    </ol>
+  </div>
+  <div class="pad count"><b id="done">0</b> of <span id="total">0</span> images marked. Saved in this browser as you go.</div>
+  <div id="list"></div>
+</aside>
+<main>
+  <div class="bar">
+    <span class="name" id="name"></span>
+    <div class="tools">
+      <button class="tool" data-tool="box">Box <kbd>1</kbd></button>
+      <button class="tool" data-tool="pos"><span class="dot" style="background:var(--pos)"></span>Liver <kbd>2</kbd></button>
+      <button class="tool" data-tool="neg"><span class="dot" style="background:var(--neg)"></span>Not liver <kbd>3</kbd></button>
+      <button class="tool" data-tool="add"><span class="dot" style="background:var(--add)"></span>Add area <kbd>4</kbd></button>
+      <button class="tool" data-tool="cut"><span class="dot" style="background:var(--cut)"></span>Remove area <kbd>5</kbd></button>
+    </div>
+    <button class="act" id="koo">Expert lines <kbd>K</kbd></button>
+    <button class="act" id="undo">Undo <kbd>Z</kbd></button>
+    <button class="act" id="clear">Clear image <kbd>C</kbd></button>
+    <button class="act" id="prev"><kbd>←</kbd> Previous</button>
+    <button class="act" id="next">Next <kbd>→</kbd></button>
+    <button class="act primary" id="save">Download prompts</button>
+  </div>
+  <div id="stage"><canvas id="cv"></canvas></div>
+  <div class="status" id="status"></div>
+</main>
+<script src="../../dataset/lus-evaluation/koo_contours.js"></script>
+<script>
+const PATIENTS = {
+  1: ["02","03","04","06","07","08","09","10"],
+  2: ["01","02","03","04","05","06","07","08","09","10","11","12","13","14","15","16","19","20","21","22","23"],
+  3: ["02","03","04","05","06","07","08","09","10"],
+  4: ["02","03","04","05","06","07","08","09"]
+};
+const IMAGES = [];
+for (const p in PATIENTS) for (const n of PATIENTS[p])
+  IMAGES.push({ key: `Patient${p}/${n}`, patient: p, n, src: `../../dataset/lus-evaluation/data/Dataset/Patient${p}/Lap%20Images/${n}.png` });
+
+// One entry per image: box [x0, y0, x1, y1] and marks, in image pixels.
+// A mark is {kind: "pos" | "neg", pts: [[x, y], ...]}: one point for a click, many for a scribble.
+const STORE = "lus_prompts_v2";
+let prompts = {};
+try { prompts = JSON.parse(localStorage.getItem(STORE) || "{}"); } catch (e) {}
+const persist = () => { try { localStorage.setItem(STORE, JSON.stringify(prompts)); } catch (e) {} };
+
+const cv = document.getElementById("cv"), ctx = cv.getContext("2d"), stage = document.getElementById("stage");
+const COLOUR = { pos: "#2fbf71", neg: "#e5484d", add: "#3ea6ff", cut: "#ff9d2e" };
+const img = new Image();
+let cur = 0, tool = "box", view = { s: 1, ox: 0, oy: 0 }, drag = null, showKoo = false;
+function toggleKoo() {
+  showKoo = !showKoo;
+  document.getElementById("koo").classList.toggle("primary", showKoo);
+  if (showKoo && typeof KOO === "undefined")
+    document.getElementById("status").textContent = "Expert lines not found: keep koo_contours.js next to this file.";
+  draw();
+}
+
+const hasBox = i => !!(prompts[IMAGES[i].key] && prompts[IMAGES[i].key].box);
+const hasAny = i => !!(prompts[IMAGES[i].key] && (prompts[IMAGES[i].key].box || prompts[IMAGES[i].key].marks.length));
+const entry = () => prompts[IMAGES[cur].key] || (prompts[IMAGES[cur].key] = { box: null, marks: [] });
+const toImage = e => {
+  const r = cv.getBoundingClientRect();
+  const x = (e.clientX - r.left - view.ox) / view.s, y = (e.clientY - r.top - view.oy) / view.s;
+  return [Math.round(Math.max(0, Math.min(img.naturalWidth, x))), Math.round(Math.max(0, Math.min(img.naturalHeight, y)))];
+};
+
+function drawMark(kind, pts) {
+  const s = view.s, X = p => view.ox + p[0] * s, Y = p => view.oy + p[1] * s;
+  if (kind === "add" || kind === "cut") {  // a closed loop, shaded inside
+    ctx.beginPath(); ctx.moveTo(X(pts[0]), Y(pts[0]));
+    for (const p of pts) ctx.lineTo(X(p), Y(p));
+    ctx.closePath();
+    ctx.fillStyle = COLOUR[kind] + "55"; ctx.fill();
+    ctx.lineWidth = 2; ctx.setLineDash([6, 4]); ctx.strokeStyle = COLOUR[kind]; ctx.stroke(); ctx.setLineDash([]);
+    return;
+  }
+  if (pts.length > 1) {
+    ctx.lineJoin = ctx.lineCap = "round";
+    for (const [w, c] of [[7, "#fff"], [4, COLOUR[kind]]]) {
+      ctx.beginPath(); ctx.moveTo(X(pts[0]), Y(pts[0]));
+      for (const p of pts) ctx.lineTo(X(p), Y(p));
+      ctx.lineWidth = w; ctx.strokeStyle = c; ctx.stroke();
+    }
+  } else {
+    ctx.beginPath(); ctx.arc(X(pts[0]), Y(pts[0]), 8, 0, 2 * Math.PI);
+    ctx.fillStyle = COLOUR[kind]; ctx.fill(); ctx.lineWidth = 2; ctx.strokeStyle = "#fff"; ctx.stroke();
+    ctx.fillStyle = "#fff"; ctx.font = "bold 13px system-ui"; ctx.textAlign = "center"; ctx.textBaseline = "middle";
+    ctx.fillText(kind === "pos" ? "+" : "−", X(pts[0]), Y(pts[0]) + 0.5);
+  }
+}
+
+function draw() {
+  const dpr = window.devicePixelRatio || 1, W = stage.clientWidth, H = stage.clientHeight;
+  cv.width = W * dpr; cv.height = H * dpr;
+  ctx.setTransform(dpr, 0, 0, dpr, 0, 0);
+  ctx.clearRect(0, 0, W, H);
+  if (!img.naturalWidth) return;
+  const s = Math.min(W / img.naturalWidth, H / img.naturalHeight);
+  view = { s, ox: (W - img.naturalWidth * s) / 2, oy: (H - img.naturalHeight * s) / 2 };
+  ctx.drawImage(img, view.ox, view.oy, img.naturalWidth * s, img.naturalHeight * s);
+  const P = prompts[IMAGES[cur].key];
+  const box = drag && drag.kind === "box" ? [drag.pts[0][0], drag.pts[0][1], drag.last[0], drag.last[1]] : P && P.box;
+  if (box) {
+    ctx.lineWidth = 2; ctx.strokeStyle = "#f2c744";
+    ctx.strokeRect(view.ox + Math.min(box[0], box[2]) * s, view.oy + Math.min(box[1], box[3]) * s,
+                   Math.abs(box[2] - box[0]) * s, Math.abs(box[3] - box[1]) * s);
+  }
+  if (showKoo && typeof KOO !== "undefined" && KOO[IMAGES[cur].key]) {
+    const KC = { Silhouette: "#3cff3c", Ridge: "#ffdc00", Ligament: "#3c8cff" };
+    ctx.lineJoin = ctx.lineCap = "round"; ctx.setLineDash([2, 5]);
+    for (const c of KOO[IMAGES[cur].key]) {
+      ctx.beginPath();
+      c.pts.forEach((p, i) => (i ? ctx.lineTo : ctx.moveTo).call(ctx, view.ox + p[0] * s, view.oy + p[1] * s));
+      ctx.lineWidth = 3; ctx.strokeStyle = KC[c.type] || "#fff"; ctx.stroke();
+    }
+    ctx.setLineDash([]);
+  }
+  if (P) for (const m of P.marks) drawMark(m.kind, m.pts);
+  if (drag && drag.kind !== "box") drawMark(drag.kind, drag.pts);
+}
+
+function setTool(t) {
+  tool = t;
+  document.querySelectorAll(".tool").forEach(b => b.classList.toggle("on", b.dataset.tool === t));
+}
+
+function refresh() {
+  document.getElementById("done").textContent = IMAGES.filter((_, i) => hasAny(i)).length;
+  document.getElementById("total").textContent = IMAGES.length;
+  document.querySelectorAll(".item").forEach((b, i) => {
+    b.classList.toggle("done", hasAny(i));
+    b.classList.toggle("current", i === cur);
+  });
+  const P = prompts[IMAGES[cur].key], n = k => P ? P.marks.filter(m => m.kind === k).length : 0;
+  document.getElementById("name").textContent = `Patient ${IMAGES[cur].patient}, image ${IMAGES[cur].n}  (${cur + 1} of ${IMAGES.length})`;
+  const fixes = n("add") + n("cut") ? ` · ${n("add")} added area${n("add") === 1 ? "" : "s"} · ${n("cut")} removed area${n("cut") === 1 ? "" : "s"}` : "";
+  document.getElementById("status").textContent =
+    `${P && P.box ? "Box drawn" : "No box yet: drag one around the liver"} · ${n("pos")} liver mark${n("pos") === 1 ? "" : "s"} · ${n("neg")} not-liver mark${n("neg") === 1 ? "" : "s"}${fixes}`;
+  draw();
+}
+
+function go(i) {
+  cur = (i + IMAGES.length) % IMAGES.length;
+  setTool(hasBox(cur) ? "pos" : "box");
+  img.src = IMAGES[cur].src;
+  refresh();
+  const b = document.querySelectorAll(".item")[cur];
+  if (b) b.scrollIntoView({ block: "nearest" });
+}
+img.onload = refresh;
+img.onerror = () => { document.getElementById("status").textContent =
+  "Could not load " + decodeURI(IMAGES[cur].src) + ". Keep this file in dataset/lus-evaluation/, next to the data folder."; };
+
+cv.addEventListener("contextmenu", e => e.preventDefault());
+cv.addEventListener("mousedown", e => {
+  if (!img.naturalWidth) return;
+  const p = toImage(e);
+  const kind = e.button === 2 || e.shiftKey ? "neg" : tool;   // right-click or Shift: always "not liver"
+  drag = { kind, pts: [p], last: p, sx: e.clientX, sy: e.clientY, moved: false };
+});
+window.addEventListener("mousemove", e => {
+  if (!drag) return;
+  const p = toImage(e);
+  if (Math.hypot(e.clientX - drag.sx, e.clientY - drag.sy) > 5) drag.moved = true;
+  const q = drag.pts[drag.pts.length - 1];
+  if (drag.kind !== "box" && drag.moved && Math.hypot(p[0] - q[0], p[1] - q[1]) * view.s >= 3) drag.pts.push(p);
+  drag.last = p;
+  draw();
+});
+window.addEventListener("mouseup", () => {
+  if (!drag) return;
+  const P = entry(); P.w = img.naturalWidth; P.h = img.naturalHeight;
+  if (drag.kind === "box") {
+    if (drag.moved) {
+      const a = drag.pts[0], b = drag.last;
+      P.box = [Math.min(a[0], b[0]), Math.min(a[1], b[1]), Math.max(a[0], b[0]), Math.max(a[1], b[1])];
+      setTool("pos");
+    }
+  } else if (drag.kind === "add" || drag.kind === "cut") {
+    if (drag.moved && drag.pts.length >= 3) P.marks.push({ kind: drag.kind, pts: drag.pts });  // a loop needs a drag
+  } else {
+    P.marks.push({ kind: drag.kind, pts: drag.moved ? drag.pts : [drag.pts[0]] });
+  }
+  if (!P.box && !P.marks.length) delete prompts[IMAGES[cur].key];
+  drag = null; persist(); refresh();
+});
+
+function undo() {
+  const P = prompts[IMAGES[cur].key]; if (!P) return;
+  if (P.marks.length) P.marks.pop(); else { delete prompts[IMAGES[cur].key]; setTool("box"); }
+  persist(); refresh();
+}
+function clearImage() { delete prompts[IMAGES[cur].key]; setTool("box"); persist(); refresh(); }
+function download() {
+  const out = {};
+  IMAGES.forEach((im, i) => { if (hasAny(i)) out[im.key] = prompts[im.key]; });
+  const noBox = IMAGES.filter((im, i) => hasAny(i) && !hasBox(i)).map(im => im.key);
+  const missing = IMAGES.length - Object.keys(out).length;
+  const warn = [];
+  if (noBox.length) warn.push(`${noBox.length} marked image${noBox.length === 1 ? " has" : "s have"} no box (${noBox.join(", ")}); they will use the marks only.`);
+  if (missing) warn.push(`${missing} image${missing === 1 ? " is" : "s are"} not marked yet.`);
+  if (!Object.keys(out).length) { alert("Nothing is marked yet."); return; }
+  if (warn.length && !confirm(warn.join("\n") + "\n\nDownload anyway?")) return;
+  const a = document.createElement("a");
+  a.href = URL.createObjectURL(new Blob([JSON.stringify(out)], { type: "application/json" }));
+  a.download = "lus_prompts.json"; a.click();
+}
+
+document.querySelectorAll(".tool").forEach(b => b.onclick = () => setTool(b.dataset.tool));
+document.getElementById("prev").onclick = () => go(cur - 1);
+document.getElementById("next").onclick = () => go(cur + 1);
+document.getElementById("undo").onclick = undo;
+document.getElementById("koo").onclick = toggleKoo;
+document.getElementById("clear").onclick = clearImage;
+document.getElementById("save").onclick = download;
+window.addEventListener("keydown", e => {
+  const k = e.key.toLowerCase();
+  if (k === "arrowright") go(cur + 1);
+  else if (k === "arrowleft") go(cur - 1);
+  else if (k === "z") undo();
+  else if (k === "c") clearImage();
+  else if (k === "1") setTool("box");
+  else if (k === "2") setTool("pos");
+  else if (k === "3") setTool("neg");
+  else if (k === "k") toggleKoo();
+  else if (k === "4") setTool("add");
+  else if (k === "5") setTool("cut");
+});
+window.addEventListener("resize", draw);
+
+const list = document.getElementById("list");
+for (const p in PATIENTS) {
+  const g = document.createElement("div"); g.className = "group"; g.textContent = `Patient ${p}`; list.appendChild(g);
+  const box = document.createElement("div"); box.className = "items"; list.appendChild(box);
+  IMAGES.forEach((im, i) => {
+    if (im.patient !== p) return;
+    const b = document.createElement("button"); b.className = "item"; b.textContent = im.n; b.onclick = () => go(i); box.appendChild(b);
+  });
+}
+go(0);
+</script>
+</body>
+</html>

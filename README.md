@@ -1,20 +1,35 @@
-# Synthetic data for laparoscopic liver registration
+# registration-coding
 
-Goal: register a preoperative CT liver to a single laparoscopic photo, with the tumour where it really is.
-The earlier studies (archive tag `archive-2026-11`, branch `preregistration`) found what breaks current methods:
-the distance (monocular depth models put the liver 3-9x too far), the choice of rotation among look-alike poses,
-untrustworthy depth shape, and deformation. This branch builds a synthetic dataset that contains those difficulties,
-with the answer known, and trains models on it. Real data is used only for testing (P2I-LReg real frames for
-comparison with the literature; LLR-LUS once, pre-registered).
+Research code for registering a preoperative CT liver to a laparoscopic image.
 
-- `docs/GENERATOR_SPEC.md`: what the generator simulates and why (PIVOTS replica first, then our additions)
-- `regsim/p2ilreg.py`: P2I-LReg access, camera conventions, drawing helpers
-- `regsim/anatomy.py`: the 6 liver parts and part / head-direction camera poses
-- `regsim/depth_damage.py`: bumpy / flattened / slanted depth damage
-- `regsim/generator.py`: prototype camera-view generator (to be rebuilt on the PIVOTS replica)
-- `regsim/lab/`: Liver Deformation Lab (LIBR physics; record manipulations as generator templates)
-- `regsim/preview/`: generator vs dataset vs real-photo preview page
+## Layout
 
-Run from the repo root, e.g. `python -m regsim.lab.make_liver_sim --patient 06`. Data paths:
-`REGSIM_P2ILREG` (default `dataset/liver-registration`), outputs in `REGSIM_OUT` (default `out/`, git-ignored).
-Patient data and anything derived from LLR-LUS never enter git.
+```
+lus_eval/     Evaluation on LLR-LUS (real patients, tumour ground truth) and the liver-mask tools. See lus_eval/README.md
+dataset/      All data (git-ignored, never committed). LLR-LUS, P2I-LReg, model weights
+papers/       Reference PDFs (git-ignored)
+```
+
+## Setup
+
+```bash
+conda activate regis                # Python 3.11
+python -m pip install -r requirements.txt
+```
+
+Run scripts from the repository root, for example `python lus_eval/score.py --method-dir ...`.
+
+## Data rules
+
+- Patient data, and anything derived from it (masks, renders, results), lives under `dataset/` and never enters git.
+- LLR-LUS is research-use only: nothing derived from it may leave this computer.
+
+## History
+
+This branch (`clean`, 2026-11-27) keeps only the LUS evaluation. Earlier work is preserved:
+
+| Where | What |
+|---|---|
+| tag `archive-2026-11` (= branch `preregistration`) | Exploration, benchmarks, all LUS experiments (`studies/`, `goal/`) |
+| tag `archive-synthetic-2026-11-27` (= branch `synthetic`) | `regsim/`, `depth-noise-estimate/`, `docs/` |
+| `../registration-coding_backup_2026-11-27.tar.gz` (local only) | Everything that was never committed: `synthetic-data/`, `my-pipeline/`, `studies/` and `goal/` outputs, `out/` |

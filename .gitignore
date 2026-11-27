@@ -1,46 +1,18 @@
-# Dataset (heavy 3D meshes, PLYs, and keyframe data)
+# Data: patient data and anything derived from it never enters git (LLR-LUS is research-use only)
 dataset/
+out/
+papers/
 
-# Python cache & build artifacts
+# Python
 __pycache__/
 *.py[cod]
-*$py.class
-*.so
-.Python
-env/
+.venv/
 venv/
+env/
 .env
 
-# macOS system files
+# OS and editor files
 .DS_Store
-.AppleDouble
-.LSOverride
-
-# Editor & IDE settings
 .vscode/
 .idea/
 *.swp
-*~
-
-# Temporary visualization outputs
-*.html
-
-# Papers (copyrighted PDFs, kept locally)
-papers/
-
-# Results and outputs (images, arrays, per-run files): kept locally, never pushed.
-# LLR-LUS is research-only: nothing derived from it may leave this computer.
-out/
-*_out/
-*.npy
-_to_delete/
-
-# Page templates are code and must be tracked (the *.html rule above ignores generated pages)
-!*_template.html
-
-# Hand-made annotations of LLR-LUS images (derived data, research-only)
-goal/vlm/
-
-# Generated notebooks that embed LLR-LUS-derived files (oracle contact depths / scales): rebuild with their make_*_notebook.py
-studies/benchmark/kaggle/depth_benchmark_kaggle.ipynb
-studies/benchmark/kaggle/selfp2ir_lus_oracle_kaggle.ipynb
